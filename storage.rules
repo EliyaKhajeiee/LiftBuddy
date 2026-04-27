@@ -1,0 +1,33 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── User Avatars ────────────────────────────────────────────────────────
+    // Path: avatars/{uid}/avatar.jpg
+    match /avatars/{uid}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Workout Post Images ────────────────────────────────────────────────
+    // Path: posts/{uid}/{postId}.jpg
+    match /posts/{uid}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Weekly Check-in Photos ─────────────────────────────────────────────
+    // Path: checkins/{uid}/{year}/week{weekNumber}/{fileName}
+    // Max 5 photos per check-in, enforced in app logic
+    match /checkins/{uid}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

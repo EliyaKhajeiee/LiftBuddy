@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Users ──────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if request.auth.uid == uid;
+    }
+
+    // ── Workout Plans ──────────────────────────────────────────────────────
+    match /workoutPlans/{planId} {
+      allow read, update, delete: if request.auth.uid == resource.data.uid;
+      allow create: if request.auth.uid == request.resource.data.uid;
+    }
+
+    // ── Workout Logs ───────────────────────────────────────────────────────
+    match /workoutLogs/{logId} {
+      allow read, update, delete: if request.auth.uid == resource.data.uid;
+      allow create: if request.auth.uid == request.resource.data.uid;
+    }
+
+    // ── Exercise Progress (subcollection per user) ─────────────────────────
+    match /exerciseProgress/{uid}/{document=**} {
+      allow read, write: if request.auth.uid == uid;
+    }
+
+    // ── Exercise Library (seed data — read-only for all authenticated users)
+    match /exercises/{exerciseId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Posts ──────────────────────────────────────────────────────────────
+    match /posts/{postId} {
+      allow create: if request.auth.uid == request.resource.data.uid;
+
+      allow update: if request.auth.uid == resource.data.uid
+                    || (
+                      request.auth != null
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['likes', 'likedBy'])
+                    );
+
+      allow delete: if request.auth.uid == resource.data.uid;
+
+      allow read: if request.auth != null
+                  && (
+                    resource.data.isPublic == true
+                    || request.auth.uid == resource.data.uid
+                    || exists(/databases/$(database)/documents/friendships/$(request.auth.uid)/friends/$(resource.data.uid))
+                  );
+    }
+
+    // ── Friendships (bidirectional subcollections) ─────────────────────────
+    match /friendships/{uid}/friends/{friendUid} {
+      allow read: if request.auth.uid == uid;
+      allow write: if false; // written only by Cloud Functions
+    }
+
+    // ── Friend Requests ────────────────────────────────────────────────────
+    match /friendRequests/{requestId} {
+      allow create: if request.auth.uid == request.resource.data.fromUid;
+
+      allow read: if request.auth.uid == resource.data.toUid
+                  || request.auth.uid == resource.data.fromUid;
+
+      allow update: if request.auth.uid == resource.data.toUid
+                    && request.resource.data.diff(resource.data)
+                       .affectedKeys().hasOnly(['status']);
+
+      allow delete: if request.auth.uid == resource.data.fromUid;
+    }
+
+    // ── Notes (subcollection per user) ─────────────────────────────────────
+    match /notes/{uid}/workoutNotes/{noteId} {
+      allow read, write: if request.auth.uid == uid;
+    }
+
+    // ── Weekly Check-ins (subcollection per user) ──────────────────────────
+    match /weeklyCheckins/{uid}/checkins/{checkinId} {
+      allow read, write: if request.auth.uid == uid;
+    }
+  }
+}

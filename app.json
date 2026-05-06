@@ -7,6 +7,12 @@
     "scheme": "liftbuddy",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "updates": {
+      "url": "https://u.expo.dev/438ccf9b-671d-4aef-9d28-5cf5b4861d77"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.liftbuddy.app"
@@ -15,7 +21,10 @@
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A"
       },
-      "package": "com.liftbuddy.app"
+      "package": "com.liftbuddy.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -31,6 +40,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "438ccf9b-671d-4aef-9d28-5cf5b4861d77"
+      }
+    },
+    "owner": "eliyakhajeie"
   }
 }

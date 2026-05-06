@@ -1,6 +1,12 @@
-import { Tabs } from 'expo-router';
+import { useState, useEffect, useRef } from 'react';
+import { View, Alert } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme';
+import { useWorkoutStore } from '../../src/store/workoutStore';
+import { useAuthStore } from '../../src/store/authStore';
+import ActiveWorkoutBar from '../../src/components/ActiveWorkoutBar';
+import QuickLogSheet    from '../../src/components/QuickLogSheet';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -20,43 +26,81 @@ const TABS: TabConfig[] = [
 ];
 
 export default function TabsLayout() {
+  const router = useRouter();
+  const { user }                    = useAuthStore();
+  const { status, tick, finishSession, clearSession } = useWorkoutStore();
+  const [sheetOpen, setSheetOpen]   = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (status === 'active') {
+      timerRef.current = setInterval(tick, 1000);
+    } else {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [status]);
+
+  async function handleFinish() {
+    if (!user?.uid) return;
+    const { doneSets, totalSets } = useWorkoutStore.getState();
+    const remaining = totalSets() - doneSets();
+    const doFinish = async () => {
+      setSheetOpen(false);
+      await finishSession(user.uid);
+      clearSession();
+    };
+    if (remaining > 0) {
+      Alert.alert('Finish workout?', `${remaining} sets not logged.`, [
+        { text: 'Keep going', style: 'cancel' },
+        { text: 'Finish anyway', onPress: doFinish },
+      ]);
+    } else {
+      doFinish();
+    }
+  }
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.bg.secondary,
-          borderTopColor:  colors.border,
-          borderTopWidth:  1,
-          height: 64,
-          paddingBottom: 10,
-          paddingTop: 6,
-        },
-        tabBarActiveTintColor:   colors.accent.primary,
-        tabBarInactiveTintColor: colors.text.muted,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-          letterSpacing: 0.3,
-        },
-      }}
-    >
-      {TABS.map((tab) => (
-        <Tabs.Screen
-          key={tab.name}
-          name={tab.name}
-          options={{
-            title: tab.title,
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                name={focused ? tab.iconFocused : tab.icon}
-                size={24}
-                color={color}
-              />
-            ),
-          }}
-        />
-      ))}
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: colors.bg.secondary,
+            borderTopColor:  colors.border,
+            borderTopWidth:  1,
+            height: 64,
+            paddingBottom: 10,
+            paddingTop: 6,
+          },
+          tabBarActiveTintColor:   colors.accent.primary,
+          tabBarInactiveTintColor: colors.text.muted,
+          tabBarLabelStyle: { fontSize: 11, fontWeight: '500', letterSpacing: 0.3 },
+        }}
+      >
+        {TABS.map((tab) => (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              title: tab.title,
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons name={focused ? tab.iconFocused : tab.icon} size={24} color={color} />
+              ),
+            }}
+          />
+        ))}
+      </Tabs>
+
+      {status === 'active' && (
+        <ActiveWorkoutBar onPress={() => setSheetOpen(true)} />
+      )}
+
+      <QuickLogSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onFinish={handleFinish}
+      />
+    </View>
   );
 }

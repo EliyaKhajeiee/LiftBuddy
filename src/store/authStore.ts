@@ -7,9 +7,9 @@ import {
   updateProfile,
   signOut,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
-import type { AuthUser } from '../types';
+import type { AuthUser, UserProfile } from '../types';
 
 interface AuthStore {
   user:          AuthUser | null;
@@ -20,10 +20,11 @@ interface AuthStore {
   signup:        (email: string, password: string, displayName: string) => Promise<void>;
   logout:        () => Promise<void>;
   forgotPassword:(email: string) => Promise<void>;
-  clearError:    () => void;
+  clearError:         () => void;
+  completeOnboarding: (profile: UserProfile) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   user:    null,
   loading: true,
   error:   null,
@@ -132,6 +133,30 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  completeOnboarding: async (profile) => {
+    const uid = get().user?.uid;
+    if (!uid) return;
+
+    // Update store first so navigation fires immediately
+    set((state) => ({
+      user: state.user ? { ...state.user, onboardingComplete: true } : null,
+    }));
+
+    // updateDoc supports dot-notation for nested field merging (setDoc+merge does not)
+    updateDoc(doc(db, 'users', uid), {
+      profile,
+      'stats.currentWeight':         profile.weight,
+      'settings.onboardingComplete': true,
+    }).catch(() => {
+      // Doc may not exist yet for brand-new users — fall back to setDoc
+      setDoc(doc(db, 'users', uid), {
+        profile,
+        stats:    { currentWeight: profile.weight },
+        settings: { onboardingComplete: true, notifications: true, units: 'imperial' },
+      }, { merge: true }).catch(() => {});
+    });
+  },
 }));
 
 function friendlyAuthError(e: unknown): string {

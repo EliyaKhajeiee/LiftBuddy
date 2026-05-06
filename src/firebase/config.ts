@@ -1,8 +1,16 @@
 import { getApps, getApp, initializeApp } from 'firebase/app';
-import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
+import { initializeAuth, getAuth, type Persistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Firebase v12: getReactNativePersistence lives in the RN build of @firebase/auth.
+// Metro resolves '@firebase/auth' to dist/rn/index.js via the package.json
+// react-native field, so this works at runtime; the declaration bridges TS types.
+declare module '@firebase/auth' {
+  export function getReactNativePersistence(storage: typeof AsyncStorage): Persistence;
+}
+import { getReactNativePersistence } from '@firebase/auth';
 
 const firebaseConfig = {
   apiKey:            process.env.EXPO_PUBLIC_FIREBASE_API_KEY,

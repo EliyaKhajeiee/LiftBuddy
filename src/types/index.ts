@@ -50,17 +50,30 @@ export interface UserSettings {
   onboardingComplete: boolean;
   notifications:      boolean;
   units:              'metric' | 'imperial';
+  workoutMode:        'timer' | 'quick'; // 'timer' = rest countdown, 'quick' = all sets visible
+}
+
+export interface LastSessionExercise {
+  exerciseId: string;
+  sets: { weight: number; reps: number; completed: boolean }[];
+}
+
+export interface LastSession {
+  date: Timestamp;
+  exercises: LastSessionExercise[];
 }
 
 export interface AppUser {
-  uid:         string;
-  email:       string;
-  displayName: string;
-  avatarUrl:   string | null;
-  createdAt:   Timestamp;
-  profile:     UserProfile;
-  stats:       UserStats;
-  settings:    UserSettings;
+  uid:          string;
+  email:        string;
+  displayName:  string;
+  avatarUrl:    string | null;
+  createdAt:    Timestamp;
+  profile:      UserProfile;
+  stats:        UserStats;
+  settings:     UserSettings;
+  plan?:        WorkoutPlan;
+  lastSessions?: Record<string, LastSession>;
 }
 
 // Minimal user object kept in auth store (not full Firestore doc)
@@ -102,11 +115,20 @@ export interface ExercisePlan {
   restSeconds:     number;
 }
 
+export interface WorkoutSession {
+  name:      string;
+  exercises: ExercisePlan[];
+}
+
 export interface WorkoutDay {
   name:      string;
   focus:     MuscleGroup[];
-  exercises: ExercisePlan[];
+  exercises: ExercisePlan[];  // primary session (backward-compat)
+  splitKey:  string; // for muscle-specific quotes: 'legs','chest','back','arms','push','pull','full_body','shoulders'
+  sessions?: WorkoutSession[]; // all sessions; sessions[0] matches exercises above
 }
+
+export type WeekDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
 export interface WorkoutPlan {
   planId:      string;
@@ -118,6 +140,7 @@ export interface WorkoutPlan {
   createdAt:   Timestamp;
   isActive:    boolean;
   days:        Record<string, WorkoutDay>;
+  schedule:    Record<WeekDay, string | null>; // weekday -> dayKey | null (rest)
 }
 
 // ─── Workout Logs ──────────────────────────────────────────────────────────────

@@ -14,30 +14,8 @@ import {
 import { storage, db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
 import { useUserStore } from '../src/store/userStore';
+import { getISOWeek, getMondayOfWeek } from '../src/utils/dateUtils';
 import { colors, spacing, radius, typography, shadows } from '../src/theme';
-
-// ── Week helpers ───────────────────────────────────────────────────────────────
-
-function getISOWeek(d: Date): { week: number; year: number } {
-  const utc  = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const day  = utc.getUTCDay() || 7;
-  utc.setUTCDate(utc.getUTCDate() + 4 - day);
-  const jan1 = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
-  return {
-    week: Math.ceil((((utc.getTime() - jan1.getTime()) / 86400000) + 1) / 7),
-    year: utc.getUTCFullYear(),
-  };
-}
-
-function getMondayOfCurrentWeek(): Date {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d);
-  monday.setDate(diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
 
 const MOODS = ['😴', '😕', '😐', '😊', '💪'] as const;
 const MOOD_LABELS = ['Exhausted', 'Low', 'Okay', 'Good', 'Crushing It'] as const;
@@ -83,7 +61,7 @@ export default function CheckinScreen() {
   const { data }       = useUserStore();
   const { week, year } = getISOWeek(new Date());
   const docId          = `${year}-W${String(week).padStart(2, '0')}`;
-  const weekStart      = getMondayOfCurrentWeek();
+  const weekStart      = getMondayOfWeek(new Date());
 
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);

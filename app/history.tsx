@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
+import { toDateKey, daysInMonth, startOfMonth, fmtDuration, fmtVolume } from '../src/utils/dateUtils';
 import { colors, spacing, radius, typography } from '../src/theme';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -42,31 +43,8 @@ const MONTHS = [
   'July','August','September','October','November','December',
 ];
 
-function startOfMonth(year: number, month: number): Date {
-  return new Date(year, month, 1);
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
 function logDateKey(ts: Timestamp): string {
-  const d = ts.toDate();
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
-function fmtVolume(vol: number): string {
-  if (vol >= 1000) return `${(vol / 1000).toFixed(1)}k lbs`;
-  return `${Math.round(vol)} lbs`;
-}
-
-function fmtDuration(mins: number): string {
-  if (mins < 60) return `${mins}m`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  return toDateKey(ts.toDate());
 }
 
 function completedSets(ex: LogExercise): number {

@@ -10,7 +10,7 @@ import { db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
 import { useUserStore }  from '../src/store/userStore';
 import { colors, spacing, radius, typography } from '../src/theme';
-import type { WeekDay, WorkoutPlan } from '../src/types';
+import type { WeekDay, WorkoutDay, WorkoutPlan } from '../src/types';
 
 const DAYS: WeekDay[]  = ['mon','tue','wed','thu','fri','sat','sun'];
 const DAY_LABEL: Record<WeekDay, string> = {
@@ -27,6 +27,7 @@ export default function ScheduleScreen() {
   const [schedule, setSchedule] = useState<Record<WeekDay, string | null>>(
     plan?.schedule ?? { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null }
   );
+  const [days, setDays] = useState<Record<string, WorkoutDay>>(plan?.days ?? {});
   const [saving, setSaving] = useState(false);
   const [pickingDay, setPickingDay] = useState<WeekDay | null>(null);
 
@@ -40,7 +41,30 @@ export default function ScheduleScreen() {
     );
   }
 
-  const dayKeys = Object.keys(plan.days).sort(); // ['day_1', 'day_2', ...]
+  const dayKeys = Object.keys(days).sort();
+
+  function deleteTrainingDay(dk: string) {
+    Alert.alert(
+      `Delete "${days[dk]?.name}"?`,
+      'This removes the training day and unassigns it from the schedule.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: () => {
+            const newDays = { ...days };
+            delete newDays[dk];
+            setDays(newDays);
+            const newSched = { ...schedule };
+            (Object.keys(newSched) as WeekDay[]).forEach(d => {
+              if (newSched[d] === dk) newSched[d] = null;
+            });
+            setSchedule(newSched);
+          },
+        },
+      ]
+    );
+  }
 
   function assign(weekDay: WeekDay, dayKey: string | null) {
     // Remove this dayKey from any other weekday first (avoid duplicate assignment)
@@ -60,7 +84,7 @@ export default function ScheduleScreen() {
     setSaving(true);
     try {
       await setDoc(doc(db, 'users', user.uid), {
-        plan: { ...plan, schedule },
+        plan: { ...plan, schedule, days },
       }, { merge: true });
       router.back();
     } catch {
@@ -94,7 +118,7 @@ export default function ScheduleScreen() {
         {/* Day rows */}
         {DAYS.map(d => {
           const dayKey = schedule[d];
-          const day    = dayKey ? plan.days[dayKey] : null;
+          const day    = dayKey ? days[dayKey] : null;
           const isToday = DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] === d;
 
           return (
@@ -125,19 +149,29 @@ export default function ScheduleScreen() {
         {/* Plan overview */}
         <View style={s.planCard}>
           <Text style={s.planCardTitle}>YOUR TRAINING DAYS</Text>
+          {dayKeys.length === 0 && (
+            <Text style={s.planMeta}>No training days. Import or generate a plan to add some.</Text>
+          )}
           {dayKeys.map(dk => {
-            const day = plan.days[dk];
+            const day = days[dk];
+            if (!day) return null;
             const assignedTo = Object.entries(schedule).find(([, v]) => v === dk)?.[0] as WeekDay | undefined;
             return (
               <View key={dk} style={s.planRow}>
                 <View style={s.planDot} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.planName}>{day.name}</Text>
-                  <Text style={s.planMeta}>{day.exercises.length} exercises</Text>
+                  <Text style={s.planMeta}>
+                    {day.exercises.length} exercises · {assignedTo ? DAY_LABEL[assignedTo] : 'Unassigned'}
+                  </Text>
                 </View>
-                <Text style={[s.assignedLabel, assignedTo && s.assignedLabelActive]}>
-                  {assignedTo ? DAY_LABEL[assignedTo].slice(0, 3) : 'Unassigned'}
-                </Text>
+                <TouchableOpacity
+                  onPress={() => deleteTrainingDay(dk)}
+                  style={s.deleteBtn}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.accent.danger} />
+                </TouchableOpacity>
               </View>
             );
           })}
@@ -170,7 +204,8 @@ export default function ScheduleScreen() {
             </TouchableOpacity>
 
             {dayKeys.map(dk => {
-              const day    = plan.days[dk];
+              const day    = days[dk];
+              if (!day) return null;
               const active = schedule[pickingDay] === dk;
               return (
                 <TouchableOpacity
@@ -234,6 +269,7 @@ const s = StyleSheet.create({
   planMeta:      { fontSize: 11, color: colors.text.muted },
   assignedLabel: { fontSize: 11, fontWeight: '700', color: colors.text.muted },
   assignedLabelActive: { color: colors.accent.primary },
+  deleteBtn:     { padding: spacing.sm },
 
   pickerOverlay:  { position: 'absolute', inset: 0, justifyContent: 'flex-end' },
   pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },

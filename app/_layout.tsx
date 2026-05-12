@@ -52,7 +52,7 @@ export default function RootLayout() {
         <Stack.Screen name="(onboarding)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="edit-profile"      options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="workout-session"   options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
+        <Stack.Screen name="workout-session"   options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="exercise-picker"   options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="schedule"          options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="custom-workout"    options={{ animation: 'slide_from_right' }} />

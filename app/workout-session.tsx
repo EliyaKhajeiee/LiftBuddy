@@ -291,26 +291,18 @@ export default function WorkoutSession() {
   const { user } = useAuthStore();
   const {
     dayName, exercises, elapsed, status,
-    tick, finishSession, clearSession,
+    finishSession, clearSession,
     swapExercise, addSet, removeSet, removeExercise,
   } = useWorkoutStore();
 
   const [swapTarget, setSwapTarget] = useState<number | null>(null);
 
-  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigatingRef = useRef(false);
 
   // Redirect if no active session (e.g. direct navigation)
   useEffect(() => {
     if (status !== 'active') { router.back(); }
   }, []);
-
-  // Timer
-  useEffect(() => {
-    if (status !== 'active') return;
-    timerRef.current = setInterval(tick, 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [status]);
 
   const totalSets = exercises.reduce((n, ex) => n + ex.sets.length, 0);
   const doneSets  = exercises.reduce((n, ex) => n + completedSets(ex), 0);
@@ -331,7 +323,6 @@ export default function WorkoutSession() {
   async function doFinish() {
     if (!user?.uid || navigatingRef.current) return;
     navigatingRef.current = true;
-    if (timerRef.current) clearInterval(timerRef.current);
     await finishSession(user.uid);
     clearSession();
     router.back();

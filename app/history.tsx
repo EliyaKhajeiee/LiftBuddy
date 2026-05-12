@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView, View, Text, TouchableOpacity,
-  StyleSheet, ActivityIndicator,
+  StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
 import { toDateKey, daysInMonth, startOfMonth, fmtDuration, fmtVolume } from '../src/utils/dateUtils';
@@ -239,7 +239,23 @@ export default function HistoryScreen() {
 
         {/* Selected day detail */}
         {selectedLog && (
-          <WorkoutDetail log={selectedLog} />
+          <WorkoutDetail
+            log={selectedLog}
+            onDelete={async () => {
+              if (!user?.uid) return;
+              Alert.alert('Delete workout?', 'This will permanently remove this log.', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete', style: 'destructive',
+                  onPress: async () => {
+                    await deleteDoc(doc(db, 'users', user.uid, 'logs', selectedLog.logId));
+                    setLogs(prev => prev.filter(l => l.logId !== selectedLog.logId));
+                    setSelected(null);
+                  },
+                },
+              ]);
+            }}
+          />
         )}
 
         {/* Recent workouts list (when nothing selected) */}
@@ -269,7 +285,7 @@ export default function HistoryScreen() {
 
 // ── Workout detail panel ───────────────────────────────────────────────────────
 
-function WorkoutDetail({ log }: { log: WorkoutLog }) {
+function WorkoutDetail({ log, onDelete }: { log: WorkoutLog; onDelete: () => void }) {
   const date = log.startTime.toDate();
   const dateStr = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -319,6 +335,11 @@ function WorkoutDetail({ log }: { log: WorkoutLog }) {
           </View>
         );
       })}
+
+      <TouchableOpacity style={wd.deleteBtn} onPress={onDelete} activeOpacity={0.7}>
+        <Ionicons name="trash-outline" size={14} color={colors.accent.danger} />
+        <Text style={wd.deleteTxt}>Delete this workout</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -335,8 +356,10 @@ const wd = StyleSheet.create({
   exLeft:    { flex: 1 },
   exName:    { fontSize: 14, fontWeight: '600', color: colors.text.primary },
   exSets:    { fontSize: 12, color: colors.text.muted, marginTop: 2 },
-  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.text.muted },
-  statusDotDone: { backgroundColor: colors.accent.success },
+  statusDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.text.muted },
+  statusDotDone:{ backgroundColor: colors.accent.success },
+  deleteBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  deleteTxt:    { fontSize: 13, color: colors.accent.danger },
 });
 
 // ── Recent row (list view) ─────────────────────────────────────────────────────

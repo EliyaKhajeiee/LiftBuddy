@@ -13,7 +13,7 @@ import { useWorkoutStore } from '../../src/store/workoutStore';
 import { generatePlan }   from '../../src/utils/generatePlan';
 import { getDayQuote }    from '../../src/data/muscleQuotes';
 import { colors, spacing, radius, typography } from '../../src/theme';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { WeekDay, WorkoutDay, WorkoutPlan, ExercisePlan } from '../../src/types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -70,9 +70,10 @@ function isDayLogged(plan: WorkoutPlan, dayKey: string, lastSessions: any): bool
 
 // ── Week strip ─────────────────────────────────────────────────────────────────
 
-function WeekStrip({ plan, today, lastSessions, onDayPress }: {
+function WeekStrip({ plan, today, selectedDayKey, lastSessions, onDayPress }: {
   plan: WorkoutPlan;
   today: WeekDay;
+  selectedDayKey: string | null;
   lastSessions?: any;
   onDayPress: (dayKey: string, day: WorkoutDay) => void;
 }) {
@@ -80,24 +81,33 @@ function WeekStrip({ plan, today, lastSessions, onDayPress }: {
   return (
     <View style={ws.wrap}>
       {DOW_ORDER.slice(1).concat(DOW_ORDER[0]).map(d => {
-        const dayKey = plan.schedule?.[d] ?? null;
-        const day    = dayKey ? plan.days[dayKey] : null;
-        const isToday  = d === today;
-        const isLogged = dayKey ? isDayLogged(plan, dayKey, lastSessions) : false;
-        const isRest   = !dayKey;
+        const dayKey     = plan.schedule?.[d] ?? null;
+        const day        = dayKey ? plan.days[dayKey] : null;
+        const isToday    = d === today;
+        const isSelected = !!dayKey && dayKey === selectedDayKey;
+        const isLogged   = dayKey ? isDayLogged(plan, dayKey, lastSessions) : false;
+        const isRest     = !dayKey;
 
         return (
           <TouchableOpacity
             key={d}
-            style={[ws.col, isToday && ws.colToday]}
+            style={[ws.col, isToday && ws.colToday, isSelected && !isToday && ws.colSelected]}
             onPress={() => { if (day && dayKey) onDayPress(dayKey, day); }}
             activeOpacity={day ? 0.7 : 1}
           >
-            <Text style={[ws.dayLabel, isToday && ws.dayLabelToday]}>{DAY_SHORT[d]}</Text>
-            <View style={[ws.dot, isLogged && ws.dotDone, isToday && !isLogged && ws.dotToday, isRest && ws.dotRest]}>
+            <Text style={[ws.dayLabel, isToday && ws.dayLabelToday, isSelected && !isToday && ws.dayLabelSelected]}>
+              {DAY_SHORT[d]}
+            </Text>
+            <View style={[
+              ws.dot,
+              isLogged  && ws.dotDone,
+              isToday   && !isLogged && ws.dotToday,
+              isSelected && !isLogged && ws.dotSelected,
+              isRest    && ws.dotRest,
+            ]}>
               {isLogged && <Ionicons name="checkmark" size={9} color="#fff" />}
             </View>
-            <Text style={[ws.workoutLabel, isToday && ws.workoutLabelToday]} numberOfLines={1}>
+            <Text style={[ws.workoutLabel, (isToday || isSelected) && ws.workoutLabelActive]} numberOfLines={1}>
               {day ? day.name.split('—')[0].trim().split(' ').slice(-1)[0] : 'Rest'}
             </Text>
           </TouchableOpacity>
@@ -108,17 +118,20 @@ function WeekStrip({ plan, today, lastSessions, onDayPress }: {
 }
 
 const ws = StyleSheet.create({
-  wrap:             { flexDirection: 'row', paddingHorizontal: spacing.md, gap: 2 },
-  col:              { flex: 1, alignItems: 'center', gap: 5, paddingVertical: spacing.sm, borderRadius: radius.md },
-  colToday:         { backgroundColor: `${colors.accent.primary}10` },
-  dayLabel:         { fontSize: 10, fontWeight: '600', color: colors.text.muted, letterSpacing: 0.5 },
-  dayLabelToday:    { color: colors.accent.primary },
-  dot:              { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
-  dotToday:         { borderColor: colors.accent.primary, backgroundColor: `${colors.accent.primary}20` },
-  dotDone:          { backgroundColor: colors.accent.success, borderColor: colors.accent.success },
-  dotRest:          { backgroundColor: 'transparent', borderStyle: 'dashed' },
-  workoutLabel:     { fontSize: 8, fontWeight: '600', color: colors.text.muted, letterSpacing: 0.3, textTransform: 'uppercase' },
-  workoutLabelToday:{ color: colors.accent.primary },
+  wrap:              { flexDirection: 'row', paddingHorizontal: spacing.md, gap: 2 },
+  col:               { flex: 1, alignItems: 'center', gap: 5, paddingVertical: spacing.sm, borderRadius: radius.md },
+  colToday:          { backgroundColor: `${colors.accent.primary}10` },
+  colSelected:       { backgroundColor: `${colors.text.primary}08` },
+  dayLabel:          { fontSize: 10, fontWeight: '600', color: colors.text.muted, letterSpacing: 0.5 },
+  dayLabelToday:     { color: colors.accent.primary },
+  dayLabelSelected:  { color: colors.text.primary },
+  dot:               { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
+  dotToday:          { borderColor: colors.accent.primary, backgroundColor: `${colors.accent.primary}20` },
+  dotSelected:       { borderColor: colors.text.muted },
+  dotDone:           { backgroundColor: colors.accent.success, borderColor: colors.accent.success },
+  dotRest:           { backgroundColor: 'transparent', borderStyle: 'dashed' },
+  workoutLabel:      { fontSize: 8, fontWeight: '600', color: colors.text.muted, letterSpacing: 0.3, textTransform: 'uppercase' },
+  workoutLabelActive:{ color: colors.accent.primary },
 });
 
 // ── Exercise preview row ───────────────────────────────────────────────────────
@@ -151,16 +164,25 @@ export default function WorkoutScreen() {
   const { status, startSession, startCustom } = useWorkoutStore();
   const [generating, setGenerating] = useState(false);
   const [showSwap,   setShowSwap]   = useState(false);
+  const [selDayKey,  setSelDayKey]  = useState<string | null>(null);
 
   const profile      = data?.profile;
   const plan         = data?.plan;
   const lastSessions = data?.lastSessions;
   const today        = todayKey();
 
-  const todayDayKey  = plan?.schedule?.[today] ?? null;
-  const todayDay     = todayDayKey ? plan?.days[todayDayKey] : null;
-  const todayLogged  = todayDayKey ? isDayLogged(plan!, todayDayKey, lastSessions) : false;
+  const todayDayKey   = plan?.schedule?.[today] ?? null;
   const sessionActive = status === 'active';
+
+  // Default selection to today's day when plan loads
+  useEffect(() => {
+    if (todayDayKey && selDayKey === null) setSelDayKey(todayDayKey);
+  }, [todayDayKey]);
+
+  const viewingDayKey = selDayKey ?? todayDayKey;
+  const viewingDay    = viewingDayKey ? plan?.days[viewingDayKey] : null;
+  const viewingLogged = viewingDayKey ? isDayLogged(plan!, viewingDayKey, lastSessions) : false;
+  const isViewingToday = viewingDayKey === todayDayKey;
 
   async function handleGenerate() {
     if (!user?.uid || !profile) return;
@@ -174,13 +196,23 @@ export default function WorkoutScreen() {
 
   function handleStartDay(dayKey: string) {
     if (!user?.uid || !plan) return;
+    if (sessionActive) {
+      (router.push as any)('/workout-session');
+      return;
+    }
     const ls = lastSessions?.[dayKey];
     startSession(user.uid, plan, dayKey, ls);
+    (router.push as any)('/workout-session');
   }
 
   function handleStartSecondary(name: string, exercises: ExercisePlan[]) {
     if (!user?.uid) return;
+    if (sessionActive) {
+      Alert.alert('Workout active', 'Finish your current workout before starting another.');
+      return;
+    }
     startCustom(user.uid, name, planToActive(exercises));
+    (router.push as any)('/workout-session');
   }
 
   return (
@@ -189,7 +221,7 @@ export default function WorkoutScreen() {
       <View style={s.topBar}>
         <View>
           <Text style={s.dateText}>{DAY_LABEL[today].toUpperCase()}</Text>
-          <Text style={s.title}>{plan ? (todayDay ? todayDay.name : 'Rest Day') : 'Workout'}</Text>
+          <Text style={s.title}>{plan ? (viewingDay ? viewingDay.name : 'Rest Day') : 'Workout'}</Text>
         </View>
         <View style={s.topBtns}>
           <TouchableOpacity style={s.iconBtn} onPress={() => (router.push as any)('/history')} activeOpacity={0.7}>
@@ -212,23 +244,30 @@ export default function WorkoutScreen() {
             <WeekStrip
               plan={plan}
               today={today}
+              selectedDayKey={viewingDayKey}
               lastSessions={lastSessions}
-              onDayPress={(dayKey, day) => {
-                if (sessionActive) return;
-                Alert.alert(day.name, `Start this workout?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Start', onPress: () => handleStartDay(dayKey) },
-                ]);
-              }}
+              onDayPress={(dayKey) => setSelDayKey(dayKey)}
             />
 
-            {/* Today's workout or rest day */}
-            {todayDay && todayDayKey ? (
+            {/* Viewing non-today indicator */}
+            {!isViewingToday && viewingDay && (
+              <TouchableOpacity
+                style={s.viewingBanner}
+                onPress={() => setSelDayKey(todayDayKey)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.viewingText}>Viewing {viewingDay.name}</Text>
+                <Text style={s.viewingBack}>← Back to today</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Selected day's workout or rest day */}
+            {viewingDay && viewingDayKey ? (
               <TodayCard
-                day={todayDay}
-                logged={todayLogged}
+                day={viewingDay}
+                logged={viewingLogged}
                 sessionActive={sessionActive}
-                onStart={() => handleStartDay(todayDayKey)}
+                onStart={() => handleStartDay(viewingDayKey)}
                 onStartSecondary={(name, exs) => handleStartSecondary(name, exs)}
                 onSwitchDay={() => setShowSwap(true)}
               />
@@ -341,23 +380,21 @@ function TodayCard({ day, logged, sessionActive, onStart, onStartSecondary, onSw
 
         {/* Primary start button */}
         <TouchableOpacity
-          style={[tc.startBtn, sessionActive && tc.startBtnActive, logged && tc.startBtnLogged]}
+          style={[tc.startBtn, logged && !sessionActive && tc.startBtnLogged]}
           onPress={onStart}
           activeOpacity={0.9}
         >
-          <Ionicons name={sessionActive ? 'radio-button-on' : 'play'} size={16} color="#fff" />
+          <Ionicons name="play" size={16} color="#fff" />
           <Text style={tc.startText}>
-            {sessionActive ? 'Continue Workout' : logged ? 'Log Again' : 'Begin Workout'}
+            {logged && !sessionActive ? 'Log Again' : 'Begin Workout'}
           </Text>
         </TouchableOpacity>
 
         {/* Switch day */}
-        {!sessionActive && (
-          <TouchableOpacity style={tc.switchBtn} onPress={onSwitchDay} activeOpacity={0.7}>
-            <Ionicons name="swap-vertical-outline" size={13} color={colors.text.muted} />
-            <Text style={tc.switchText}>Do a different day</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={tc.switchBtn} onPress={onSwitchDay} activeOpacity={0.7}>
+          <Ionicons name="swap-vertical-outline" size={13} color={colors.text.muted} />
+          <Text style={tc.switchText}>Do a different day</Text>
+        </TouchableOpacity>
 
         {/* Secondary sessions */}
         {secondarySessions.map((sess, si) => (
@@ -619,6 +656,9 @@ const s = StyleSheet.create({
   manageBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 6 },
   manageBtnText: { fontSize: 12, fontWeight: '600', color: colors.text.secondary },
   scroll:    { padding: spacing.md, gap: spacing.md, paddingBottom: 100 },
+  viewingBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.bg.elevated, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border },
+  viewingText:   { fontSize: 13, fontWeight: '600', color: colors.text.primary },
+  viewingBack:   { fontSize: 12, color: colors.text.muted },
   actionRow: { flexDirection: 'row', gap: spacing.sm },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: spacing.sm + 2, backgroundColor: colors.bg.card },
   actionBtnText: { fontSize: 12, fontWeight: '600', color: colors.text.secondary },

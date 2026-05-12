@@ -1,12 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { View, Alert } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme';
 import { useWorkoutStore } from '../../src/store/workoutStore';
-import { useAuthStore } from '../../src/store/authStore';
 import ActiveWorkoutBar from '../../src/components/ActiveWorkoutBar';
-import QuickLogSheet    from '../../src/components/QuickLogSheet';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -26,10 +24,8 @@ const TABS: TabConfig[] = [
 ];
 
 export default function TabsLayout() {
-  const router = useRouter();
-  const { user }                    = useAuthStore();
-  const { status, tick, finishSession, clearSession } = useWorkoutStore();
-  const [sheetOpen, setSheetOpen]   = useState(false);
+  const router   = useRouter();
+  const { status, tick } = useWorkoutStore();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -40,25 +36,6 @@ export default function TabsLayout() {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [status]);
-
-  async function handleFinish() {
-    if (!user?.uid) return;
-    const { doneSets, totalSets } = useWorkoutStore.getState();
-    const remaining = totalSets() - doneSets();
-    const doFinish = async () => {
-      setSheetOpen(false);
-      await finishSession(user.uid);
-      clearSession();
-    };
-    if (remaining > 0) {
-      Alert.alert('Finish workout?', `${remaining} sets not logged.`, [
-        { text: 'Keep going', style: 'cancel' },
-        { text: 'Finish anyway', onPress: doFinish },
-      ]);
-    } else {
-      doFinish();
-    }
-  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -93,14 +70,8 @@ export default function TabsLayout() {
       </Tabs>
 
       {status === 'active' && (
-        <ActiveWorkoutBar onPress={() => setSheetOpen(true)} />
+        <ActiveWorkoutBar onPress={() => (router.push as any)('/workout-session')} />
       )}
-
-      <QuickLogSheet
-        visible={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        onFinish={handleFinish}
-      />
     </View>
   );
 }

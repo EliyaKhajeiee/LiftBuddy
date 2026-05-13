@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRef, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '../store/workoutStore';
 import { colors, spacing, radius } from '../theme';
 
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function ActiveWorkoutBar({ onPress }: Props) {
+  const { bottom } = useSafeAreaInsets();
   const { dayName, exercises, elapsed, currentExIdx, restActive, restRemaining, restTotal } = useWorkoutStore();
 
   const done   = exercises.reduce((n, ex) => n + ex.sets.filter(s => s.completed).length, 0);
@@ -43,7 +45,7 @@ export default function ActiveWorkoutBar({ onPress }: Props) {
   const dotColor = restActive ? colors.accent.warning : colors.accent.primary;
 
   return (
-    <TouchableOpacity style={s.bar} onPress={onPress} activeOpacity={0.9}>
+    <TouchableOpacity style={[s.bar, { bottom: bottom + 58 }]} onPress={onPress} activeOpacity={0.9}>
       {/* Progress fill background */}
       <View style={[s.fill, { width: `${(done / Math.max(total, 1)) * 100}%` as any }]} />
 
@@ -90,7 +92,7 @@ export default function ActiveWorkoutBar({ onPress }: Props) {
 const s = StyleSheet.create({
   bar: {
     position:         'absolute',
-    bottom:           96,
+    bottom:           0,
     left:             spacing.md,
     right:            spacing.md,
     height:           58,

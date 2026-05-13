@@ -1,6 +1,6 @@
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,6 +9,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { storage, db } from '../../src/firebase/config';
 import { useAuthStore } from '../../src/store/authStore';
 import { useUserStore } from '../../src/store/userStore';
+import { useCacaStore } from '../../src/store/cacaStore';
 import { colors, spacing, radius, typography, shadows } from '../../src/theme';
 import type { Goal, ExperienceLevel, Location } from '../../src/types';
 
@@ -75,7 +76,10 @@ export default function ProfileScreen() {
   const router              = useRouter();
   const { user, logout }   = useAuthStore();
   const { data, loading }  = useUserStore();
+  const { enabled: cacaEnabled, setEnabled: setCacaEnabled, loadSettings } = useCacaStore();
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => { loadSettings(); }, []);
 
   async function pickAndUploadAvatar() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -212,6 +216,20 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* CACA MODE */}
+        <View style={styles.cacaRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cacaTitle}>CACA MODE</Text>
+            <Text style={styles.cacaSub}>Grow your character by lifting</Text>
+          </View>
+          <Switch
+            value={cacaEnabled}
+            onValueChange={setCacaEnabled}
+            trackColor={{ false: colors.bg.elevated, true: `${colors.accent.primary}60` }}
+            thumbColor={cacaEnabled ? colors.accent.primary : colors.text.muted}
+          />
+        </View>
+
         {/* Friends */}
         <TouchableOpacity style={styles.friendsBtn} onPress={() => router.push('/friends' as any)} activeOpacity={0.8}>
           <Ionicons name="people-outline" size={18} color={colors.accent.primary} />
@@ -263,4 +281,7 @@ const styles = StyleSheet.create({
   friendsBtnText:{ color: colors.accent.primary, fontWeight: '700', fontSize: 15 },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: `${colors.accent.danger}15`, borderWidth: 1, borderColor: `${colors.accent.danger}40`, borderRadius: radius.md, paddingVertical: spacing.md },
   logoutText:{ color: colors.accent.danger, fontWeight: '700', fontSize: 15 },
+  cacaRow:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.card, borderRadius: radius.lg, borderWidth: 1, borderColor: `${colors.accent.primary}30`, padding: spacing.md },
+  cacaTitle: { fontSize: 13, fontWeight: '800', letterSpacing: 1.5, color: colors.accent.primary },
+  cacaSub:   { fontSize: 11, color: colors.text.muted, marginTop: 2 },
 });

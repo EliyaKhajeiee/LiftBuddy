@@ -4,6 +4,7 @@ import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme';
 import { useWorkoutStore } from '../../src/store/workoutStore';
+import { useCacaStore } from '../../src/store/cacaStore';
 import ActiveWorkoutBar from '../../src/components/ActiveWorkoutBar';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -26,7 +27,10 @@ const TABS: TabConfig[] = [
 export default function TabsLayout() {
   const router   = useRouter();
   const { status, tick } = useWorkoutStore();
+  const { enabled: cacaEnabled, loadSettings } = useCacaStore();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => { loadSettings(); }, []);
 
   useEffect(() => {
     if (status === 'active') {
@@ -67,6 +71,16 @@ export default function TabsLayout() {
             }}
           />
         ))}
+        <Tabs.Screen
+          name="caca"
+          options={{
+            title: 'CACA',
+            href: cacaEnabled ? undefined : null,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? 'body' : 'body-outline'} size={24} color={color} />
+            ),
+          }}
+        />
       </Tabs>
 
       {status === 'active' && (

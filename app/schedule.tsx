@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
@@ -30,6 +30,27 @@ function ExerciseEditor({
   onRemove: () => void;
   onSwap: () => void;
 }) {
+  const [sets,    setSets]    = useState(String(ex.sets));
+  const [repMin,  setRepMin]  = useState(String(ex.repMin));
+  const [repMax,  setRepMax]  = useState(String(ex.repMax));
+  const [rest,    setRest]    = useState(String(ex.restSeconds));
+
+  // Sync if parent swaps the exercise underneath us
+  useEffect(() => {
+    setSets(String(ex.sets));
+    setRepMin(String(ex.repMin));
+    setRepMax(String(ex.repMax));
+    setRest(String(ex.restSeconds));
+  }, [ex.exerciseId]);
+
+  function commit(overrides: Partial<{ sets: string; repMin: string; repMax: string; rest: string }>) {
+    const s  = parseInt(overrides.sets    ?? sets)    || ex.sets;
+    const mn = parseInt(overrides.repMin  ?? repMin)  || ex.repMin;
+    const mx = parseInt(overrides.repMax  ?? repMax)  || ex.repMax;
+    const r  = parseInt(overrides.rest    ?? rest)    || ex.restSeconds;
+    onUpdate({ ...ex, sets: Math.max(1, s), repMin: Math.max(1, mn), repMax: Math.max(mn, mx), restSeconds: Math.max(30, r) });
+  }
+
   return (
     <View style={ee.card}>
       <View style={ee.header}>
@@ -49,8 +70,9 @@ function ExerciseEditor({
           <Text style={ee.fieldLabel}>SETS</Text>
           <TextInput
             style={ee.fieldInput}
-            value={String(ex.sets)}
-            onChangeText={v => onUpdate({ ...ex, sets: Math.max(1, parseInt(v) || 1) })}
+            value={sets}
+            onChangeText={setSets}
+            onBlur={() => commit({ sets })}
             keyboardType="number-pad"
             maxLength={2}
             selectTextOnFocus
@@ -60,8 +82,9 @@ function ExerciseEditor({
           <Text style={ee.fieldLabel}>MIN</Text>
           <TextInput
             style={ee.fieldInput}
-            value={String(ex.repMin)}
-            onChangeText={v => onUpdate({ ...ex, repMin: Math.max(1, parseInt(v) || 1) })}
+            value={repMin}
+            onChangeText={setRepMin}
+            onBlur={() => commit({ repMin })}
             keyboardType="number-pad"
             maxLength={3}
             selectTextOnFocus
@@ -71,8 +94,9 @@ function ExerciseEditor({
           <Text style={ee.fieldLabel}>MAX</Text>
           <TextInput
             style={ee.fieldInput}
-            value={String(ex.repMax)}
-            onChangeText={v => onUpdate({ ...ex, repMax: Math.max(ex.repMin, parseInt(v) || ex.repMin) })}
+            value={repMax}
+            onChangeText={setRepMax}
+            onBlur={() => commit({ repMax })}
             keyboardType="number-pad"
             maxLength={3}
             selectTextOnFocus
@@ -82,8 +106,9 @@ function ExerciseEditor({
           <Text style={ee.fieldLabel}>REST (s)</Text>
           <TextInput
             style={ee.fieldInput}
-            value={String(ex.restSeconds)}
-            onChangeText={v => onUpdate({ ...ex, restSeconds: Math.max(30, parseInt(v) || 60) })}
+            value={rest}
+            onChangeText={setRest}
+            onBlur={() => commit({ rest })}
             keyboardType="number-pad"
             maxLength={3}
             selectTextOnFocus
@@ -350,7 +375,7 @@ export default function ScheduleScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete', style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             const newDays = { ...days };
             delete newDays[dk];
             setDays(newDays);
@@ -359,6 +384,14 @@ export default function ScheduleScreen() {
               if (newSched[d] === dk) newSched[d] = null;
             });
             setSchedule(newSched);
+            if (!user?.uid || !plan) return;
+            try {
+              await setDoc(doc(db, 'users', user.uid), {
+                plan: { ...plan, schedule: newSched, days: newDays },
+              }, { merge: true });
+            } catch {
+              Alert.alert('Error', 'Could not save. Try again.');
+            }
           },
         },
       ]
@@ -377,9 +410,18 @@ export default function ScheduleScreen() {
     setEditingDayKey(newKey);
   }
 
-  function handleSaveDay(dayKey: string, updated: WorkoutDay) {
-    setDays(prev => ({ ...prev, [dayKey]: updated }));
+  async function handleSaveDay(dayKey: string, updated: WorkoutDay) {
+    const newDays = { ...days, [dayKey]: updated };
+    setDays(newDays);
     setEditingDayKey(null);
+    if (!user?.uid || !plan) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        plan: { ...plan, schedule, days: newDays },
+      }, { merge: true });
+    } catch {
+      Alert.alert('Error', 'Could not save. Try again.');
+    }
   }
 
   function assign(weekDay: WeekDay, dayKey: string | null) {

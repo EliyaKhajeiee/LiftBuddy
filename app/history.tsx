@@ -171,27 +171,29 @@ export default function HistoryScreen() {
               return (
                 <TouchableOpacity
                   key={dateKey}
-                  style={[
-                    s.cell,
-                    hasLog && !isFuture && s.cellHasLog,
-                    isToday && s.cellToday,
-                    isSel   && s.cellSelected,
-                  ]}
+                  style={s.cell}
                   onPress={() => {
                     if (isFuture || !hasLog) { setSelected(null); return; }
                     setSelected(isSel ? null : dateKey);
                   }}
                   activeOpacity={hasLog && !isFuture ? 0.75 : 1}
                 >
-                  <Text style={[
-                    s.dayNum,
-                    isToday  && s.dayNumToday,
-                    isSel    && s.dayNumSel,
-                    isFuture && s.dayNumFuture,
-                    hasLog && !isFuture && !isSel && s.dayNumHasLog,
+                  <View style={[
+                    s.cellInner,
+                    hasLog && !isFuture && s.cellInnerHasLog,
+                    isToday && s.cellInnerToday,
+                    isSel   && s.cellInnerSel,
                   ]}>
-                    {day}
-                  </Text>
+                    <Text style={[
+                      s.dayNum,
+                      isToday  && s.dayNumToday,
+                      isSel    && s.dayNumSel,
+                      isFuture && s.dayNumFuture,
+                      hasLog && !isFuture && !isSel && s.dayNumHasLog,
+                    ]}>
+                      {day}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -408,10 +410,11 @@ const s = StyleSheet.create({
   dowLabel: { flex: 1, textAlign: 'center', fontSize: 10, fontWeight: '700', color: colors.text.muted, letterSpacing: 0.5 },
 
   grid:     { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.md },
-  cell:     { width: `${100/7}%` as any, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  cellHasLog:  { backgroundColor: `${colors.accent.primary}18` },
-  cellToday:   { borderWidth: 1.5, borderColor: `${colors.accent.primary}50` },
-  cellSelected:{ backgroundColor: colors.accent.primary },
+  cell:     { width: `${100/7}%` as any, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+  cellInner:      { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  cellInnerHasLog:{ backgroundColor: `${colors.accent.primary}25` },
+  cellInnerToday: { borderWidth: 1.5, borderColor: `${colors.accent.primary}60` },
+  cellInnerSel:   { backgroundColor: colors.accent.primary },
 
   dayNum:       { fontSize: 13, fontWeight: '500', color: colors.text.secondary },
   dayNumHasLog: { fontWeight: '700', color: colors.text.primary },

@@ -173,18 +173,14 @@ export default function CheckinScreen() {
           weekNumber: week,
           year,
           weekStart:  Timestamp.fromDate(weekStart),
-          createdAt:  isEdit ? undefined : now,
+          ...(!isEdit && { createdAt: now }),
           updatedAt:  now,
           weight:     parsedWeight,
           notes:      notes.trim(),
           mood:       mood ?? null,
-          photos:     uploadedUrl ? [{
-            url:         uploadedUrl,
-            storagePath: `checkins/${user.uid}/${docId}/photo_0.jpg`,
-            takenAt:     now,
-            note:        '',
-            isMain:      true,
-          }] : (isEdit ? undefined : []),
+          ...(uploadedUrl
+            ? { photos: [{ url: uploadedUrl, storagePath: `checkins/${user.uid}/${docId}/photo_0.jpg`, takenAt: now, note: '', isMain: true }] }
+            : (!isEdit ? { photos: [] } : {})),
           measurements: {
             chest:      parseFloat(m.chest)      || null,
             waist:      parseFloat(m.waist)      || null,
@@ -198,19 +194,27 @@ export default function CheckinScreen() {
         { merge: true },
       );
 
-      // Also update stats.currentWeight if weight entered
+      // Update weight — skip duplicate entry if same weight already logged today
       if (parsedWeight) {
         try {
-          await updateDoc(doc(db, 'users', user.uid), {
-            'stats.currentWeight': parsedWeight,
-            'stats.weightHistory': arrayUnion({ date: now, weight: parsedWeight }),
+          const alreadyToday = data?.stats?.weightHistory?.some((entry: any) => {
+            try {
+              const d = entry.date?.toDate ? entry.date.toDate() : new Date(entry.date);
+              return d.toDateString() === new Date().toDateString() && entry.weight === parsedWeight;
+            } catch { return false; }
           });
+          if (alreadyToday) {
+            await updateDoc(doc(db, 'users', user.uid), { 'stats.currentWeight': parsedWeight });
+          } else {
+            await updateDoc(doc(db, 'users', user.uid), {
+              'stats.currentWeight': parsedWeight,
+              'stats.weightHistory': arrayUnion({ date: now, weight: parsedWeight }),
+            });
+          }
         } catch {}
       }
 
-      Alert.alert(isEdit ? 'Updated!' : 'Check-in saved!', 'Your progress has been recorded.', [
-        { text: 'Done', onPress: () => router.back() },
-      ]);
+      router.back();
     } catch (e) {
       console.error('checkin save error:', e);
       Alert.alert('Error', 'Could not save check-in. Try again.');
@@ -285,8 +289,8 @@ export default function CheckinScreen() {
             <Text style={s.sectionLabel}>HOW ARE YOU FEELING?</Text>
             <View style={s.card}>
               <View style={s.moodRow}>
-                {MOODS.map((emoji, i) => {
-                  const val = (i + 1) as 1|2|3|4|5;
+                {MOOD_LABELS.map((label, i) => {
+                  const val    = (i + 1) as 1|2|3|4|5;
                   const active = mood === val;
                   return (
                     <TouchableOpacity
@@ -295,8 +299,8 @@ export default function CheckinScreen() {
                       onPress={() => setMood(val)}
                       activeOpacity={0.7}
                     >
-                      <Text style={[s.moodEmoji, active && s.moodEmojiActive]}>{emoji}</Text>
-                      <Text style={[s.moodLabel, active && s.moodLabelActive]}>{MOOD_LABELS[i]}</Text>
+                      <View style={[s.moodBar, active && s.moodBarActive]} />
+                      <Text style={[s.moodLabel, active && s.moodLabelActive]}>{label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -440,13 +444,13 @@ const s = StyleSheet.create({
   weightHint:     { fontSize: 12, color: colors.text.muted, textAlign: 'center', marginTop: spacing.sm },
 
   // Mood
-  moodRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  moodBtn:      { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.md, gap: 4 },
-  moodBtnActive:{ backgroundColor: `${colors.accent.primary}15` },
-  moodEmoji:       { fontSize: 26 },
-  moodEmojiActive: { fontSize: 30 },
-  moodLabel:       { fontSize: 9, fontWeight: '700', color: colors.text.muted, letterSpacing: 0.3, textAlign: 'center' },
-  moodLabelActive: { color: colors.accent.primary },
+  moodRow:       { flexDirection: 'row', gap: spacing.xs },
+  moodBtn:       { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.md, gap: 6, borderWidth: 1, borderColor: 'transparent' },
+  moodBtnActive: { borderColor: colors.accent.primary, backgroundColor: `${colors.accent.primary}10` },
+  moodBar:       { width: '60%', height: 3, borderRadius: 2, backgroundColor: colors.bg.elevated },
+  moodBarActive: { backgroundColor: colors.accent.primary },
+  moodLabel:     { fontSize: 8, fontWeight: '700', color: colors.text.muted, letterSpacing: 0.3, textAlign: 'center' },
+  moodLabelActive:{ color: colors.accent.primary },
 
   // Notes
   notesInput: { fontSize: 15, color: colors.text.primary, lineHeight: 22, minHeight: 90 },

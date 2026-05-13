@@ -28,12 +28,14 @@ function planToActive(exercises: ExercisePlan[]) {
     repMax:         pe.repMax,
     restSeconds:    pe.restSeconds ?? 90,
     sets: Array.from({ length: pe.sets }, (_, i) => ({
-      setNumber:  i + 1,
-      prevWeight: 0,
-      prevReps:   0,
-      weight:     '',
-      reps:       String(pe.repMin),
-      completed:  false,
+      setNumber:    i + 1,
+      prevWeight:   0,
+      prevReps:     0,
+      weight:       '',
+      reps:         String(pe.repMin),
+      completed:    false,
+      weightEdited: false,
+      repsEdited:   false,
     })),
   }));
 }
@@ -58,7 +60,7 @@ function totalSets(day: WorkoutDay): number {
   return day.exercises.reduce((n, e) => n + e.sets, 0);
 }
 
-function isDayLogged(plan: WorkoutPlan, dayKey: string, lastSessions: any): boolean {
+function isDayLogged(_plan: WorkoutPlan, dayKey: string, lastSessions: any): boolean {
   const ls = lastSessions?.[dayKey];
   if (!ls?.date) return false;
   try {
@@ -275,8 +277,13 @@ export default function WorkoutScreen() {
               <RestDayCard quote={getDayQuote('rest')} onSwitchDay={() => setShowSwap(true)} hasPlan={!!plan} />
             )}
 
-            {/* Coming up */}
-            <UpcomingDays plan={plan} today={today} lastSessions={lastSessions} />
+            {/* Last session recap */}
+            {viewingDayKey && lastSessions?.[viewingDayKey] && (
+              <LastSessionRecap
+                dayKey={viewingDayKey}
+                lastSession={lastSessions[viewingDayKey]}
+              />
+            )}
 
             {/* Manage */}
             <View style={s.actionRow}>
@@ -321,7 +328,11 @@ export default function WorkoutScreen() {
           visible={showSwap}
           plan={plan}
           lastSessions={lastSessions}
-          onSelect={dayKey => { setShowSwap(false); handleStartDay(dayKey); }}
+          onSelect={dayKey => {
+            setShowSwap(false);
+            // Let modal finish closing before navigating to avoid splash screen conflict
+            setTimeout(() => handleStartDay(dayKey), 300);
+          }}
           onClose={() => setShowSwap(false)}
         />
       )}
@@ -484,49 +495,61 @@ const rd = StyleSheet.create({
   switchText: { fontSize: 12, color: colors.text.muted },
 });
 
-// ── Upcoming days ──────────────────────────────────────────────────────────────
+// ── Last session recap ─────────────────────────────────────────────────────────
 
-function UpcomingDays({ plan, today, lastSessions }: { plan: WorkoutPlan; today: WeekDay; lastSessions?: any }) {
-  if (!plan.schedule) return null;
-  const ordered = [...DOW_ORDER.slice(1), DOW_ORDER[0]]; // Mon→Sun
-  const todayIdx = ordered.indexOf(today);
-  const upcoming = ordered
-    .slice(todayIdx + 1)
-    .concat(ordered.slice(0, todayIdx))
-    .filter(d => plan.schedule?.[d])
-    .slice(0, 3);
+function LastSessionRecap({ lastSession }: { dayKey: string; lastSession: any }) {
+  const dateStr = (() => {
+    try {
+      const d: Date = lastSession.date?.toDate ? lastSession.date.toDate() : new Date(lastSession.date);
+      const diff = Math.round((Date.now() - d.getTime()) / 86400000);
+      if (diff === 0) return 'Today';
+      if (diff === 1) return 'Yesterday';
+      return `${diff} days ago`;
+    } catch { return ''; }
+  })();
 
-  if (upcoming.length === 0) return null;
+  const exs: any[] = lastSession.exercises ?? [];
+  const totalVol = exs.reduce(
+    (t: number, ex: any) => t + (ex.sets ?? []).reduce((s: number, set: any) => s + (set.completed ? set.weight * set.reps : 0), 0),
+    0,
+  );
 
   return (
-    <View style={up.wrap}>
-      <Text style={up.label}>COMING UP</Text>
-      {upcoming.map(d => {
-        const dayKey = plan.schedule?.[d] ?? null;
-        const day    = dayKey ? plan.days[dayKey] : null;
-        if (!day || !dayKey) return null;
-        const logged = isDayLogged(plan, dayKey, lastSessions);
+    <View style={ls.wrap}>
+      <View style={ls.header}>
+        <Text style={ls.label}>LAST SESSION</Text>
+        <Text style={ls.date}>{dateStr}</Text>
+      </View>
+      {exs.slice(0, 4).map((ex: any, i: number) => {
+        const best = (ex.sets ?? []).reduce((b: any, s: any) => (!b || s.weight > b.weight ? s : b), null);
         return (
-          <View key={d} style={up.row}>
-            <Text style={up.day}>{DAY_SHORT[d]}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={up.name}>{day.name}</Text>
-              <Text style={up.meta}>{day.exercises.length} exercises · {totalSets(day)} sets</Text>
-            </View>
-            {logged && <Ionicons name="checkmark-circle" size={16} color={colors.accent.success} />}
+          <View key={i} style={ls.exRow}>
+            <Text style={ls.exName} numberOfLines={1}>{ex.name}</Text>
+            {best ? (
+              <Text style={ls.exVal}>{best.weight} lbs × {best.reps}</Text>
+            ) : null}
           </View>
         );
       })}
+      {totalVol > 0 && (
+        <View style={ls.footer}>
+          <Ionicons name="barbell-outline" size={12} color={colors.text.muted} />
+          <Text style={ls.footerText}>{totalVol.toLocaleString()} lbs total volume</Text>
+        </View>
+      )}
     </View>
   );
 }
-const up = StyleSheet.create({
-  wrap:  { gap: spacing.sm },
-  label: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, color: colors.text.muted },
-  row:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.bg.card, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
-  day:   { fontSize: 11, fontWeight: '700', color: colors.text.muted, width: 28 },
-  name:  { fontSize: 14, fontWeight: '600', color: colors.text.primary },
-  meta:  { fontSize: 11, color: colors.text.muted, marginTop: 2 },
+const ls = StyleSheet.create({
+  wrap:      { backgroundColor: colors.bg.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm },
+  header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  label:     { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, color: colors.text.muted },
+  date:      { fontSize: 11, fontWeight: '600', color: colors.accent.primary },
+  exRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3, borderTopWidth: 1, borderTopColor: colors.border },
+  exName:    { fontSize: 13, color: colors.text.secondary, flex: 1 },
+  exVal:     { fontSize: 13, fontWeight: '700', color: colors.text.primary },
+  footer:    { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  footerText:{ fontSize: 11, color: colors.text.muted },
 });
 
 // ── Day swap modal ─────────────────────────────────────────────────────────────

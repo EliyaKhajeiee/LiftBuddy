@@ -195,7 +195,7 @@ export default function CustomWorkoutScreen() {
       restSeconds:    e.restSeconds,
       sets:           Array.from({ length: e.sets }, (_, i) => ({
         setNumber: i + 1, prevWeight: 0, prevReps: 0,
-        weight: '', reps: String(e.repMin), completed: false,
+        weight: '', reps: String(e.repMin), completed: false, weightEdited: false, repsEdited: false,
       })),
     }));
 

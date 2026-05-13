@@ -7,12 +7,14 @@ import type { WorkoutPlan, ExercisePlan, LastSession, MuscleGroup } from '../typ
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface ActiveSet {
-  setNumber:  number;
-  prevWeight: number;
-  prevReps:   number;
-  weight:     string;
-  reps:       string;
-  completed:  boolean;
+  setNumber:     number;
+  prevWeight:    number;
+  prevReps:      number;
+  weight:        string;
+  reps:          string;
+  completed:     boolean;
+  weightEdited:  boolean;
+  repsEdited:    boolean;
 }
 
 export interface ActiveExercise {
@@ -94,12 +96,14 @@ function buildExercises(
     const sets: ActiveSet[] = Array.from({ length: pe.sets }, (_, i) => {
       const prev = lastSets[i];
       return {
-        setNumber:  i + 1,
-        prevWeight: prev?.weight ?? 0,
-        prevReps:   prev?.reps   ?? 0,
-        weight:     suggestedWeight > 0 ? String(suggestedWeight) : '',
-        reps:       suggestedReps   > 0 ? String(suggestedReps)   : String(pe.repMin),
-        completed:  false,
+        setNumber:    i + 1,
+        prevWeight:   prev?.weight ?? 0,
+        prevReps:     prev?.reps   ?? 0,
+        weight:       suggestedWeight > 0 ? String(suggestedWeight) : '',
+        reps:         suggestedReps   > 0 ? String(suggestedReps)   : String(pe.repMin),
+        completed:    false,
+        weightEdited: false,
+        repsEdited:   false,
       };
     });
 
@@ -162,7 +166,11 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     set(state => ({
       exercises: state.exercises.map((ex, i) =>
         i !== exIdx ? ex : {
-          ...ex, sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: value }),
+          ...ex, sets: ex.sets.map((s, j) => j !== setIdx ? s : {
+            ...s,
+            [field]: value,
+            ...(field === 'weight' ? { weightEdited: true } : { repsEdited: true }),
+          }),
         }
       ),
     }));
@@ -245,7 +253,8 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
           ...ex,
           sets: [...ex.sets, {
             setNumber: ex.sets.length + 1, prevWeight: 0, prevReps: 0,
-            weight: last?.weight ?? '', reps: last?.reps ?? String(ex.repMin), completed: false,
+            weight: last?.weight ?? '', reps: last?.reps ?? String(ex.repMin),
+            completed: false, weightEdited: true, repsEdited: true,
           }],
         };
       }),

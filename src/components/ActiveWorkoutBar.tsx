@@ -90,7 +90,7 @@ export default function ActiveWorkoutBar({ onPress }: Props) {
 const s = StyleSheet.create({
   bar: {
     position:         'absolute',
-    bottom:           68,
+    bottom:           96,
     left:             spacing.md,
     right:            spacing.md,
     height:           58,

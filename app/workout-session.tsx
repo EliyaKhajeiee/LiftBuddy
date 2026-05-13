@@ -24,34 +24,35 @@ function completedSets(ex: ActiveExercise) {
   return ex.sets.filter(s => s.completed).length;
 }
 
-function getProgressionHint(ex: ActiveExercise): { text: string; up: boolean } | null {
+function getProgressionHint(ex: ActiveExercise): { text: string; direction: 'up' | 'down' | 'neutral' } | null {
   const hasPrev = ex.sets.some(s => s.prevWeight > 0);
   const allDone = ex.sets.every(s => s.completed);
 
   if (!hasPrev) {
-    // First time doing this exercise
     if (allDone) {
       const allHitTop = ex.sets.every(s => parseInt(s.reps) >= ex.repMax);
-      if (allHitTop) return { text: `All ${ex.repMax} reps hit → +5 lbs next session`, up: true };
+      if (allHitTop) return { text: `All ${ex.repMax} reps hit — +5 lbs next session`, direction: 'up' };
     }
-    return { text: `Hit all ${ex.sets.length}×${ex.repMax} reps this session → +5 lbs next time`, up: false };
+    return { text: `Hit all ${ex.sets.length}×${ex.repMax} reps → +5 lbs next time`, direction: 'neutral' };
   }
 
-  const prevWeight  = ex.sets[0].prevWeight;
-  const currWeight  = parseFloat(ex.sets[0].weight) || prevWeight;
-  const progressed  = currWeight > prevWeight;
+  const prevWeight = ex.sets[0].prevWeight;
+  const currWeight = parseFloat(ex.sets[0].weight) || prevWeight;
+  const progressed = currWeight > prevWeight;
 
   if (progressed) {
-    return { text: `↑ +${currWeight - prevWeight} lbs applied — hit all ${ex.repMax} reps last time`, up: true };
+    return { text: `+${currWeight - prevWeight} lbs from last session`, direction: 'up' };
   }
 
   if (allDone) {
     const allHitTop = ex.sets.every(s => parseInt(s.reps) >= ex.repMax);
-    if (allHitTop) return { text: `Hit all ${ex.repMax} reps → +5 lbs next session`, up: true };
-    return { text: `${prevWeight} lbs · keep pushing to unlock +5 lbs`, up: false };
+    const hitMin    = ex.sets.every(s => parseInt(s.reps) >= ex.repMin);
+    if (allHitTop)  return { text: `Hit all ${ex.repMax} reps — +5 lbs next session`, direction: 'up' };
+    if (!hitMin)    return { text: `Missed min reps — stay at ${prevWeight} lbs`, direction: 'down' };
+    return { text: `${prevWeight} lbs — hit ${ex.repMax} reps to unlock +5 lbs`, direction: 'neutral' };
   }
 
-  return { text: `${prevWeight} lbs last time — hit all ${ex.sets.length}×${ex.repMax} → +5 lbs next session`, up: false };
+  return { text: `${prevWeight} lbs last time — hit ${ex.sets.length}×${ex.repMax} for +5 lbs`, direction: 'neutral' };
 }
 
 // ── Set Row ────────────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@ function SetRow({
       <Text style={sr.num}>{set.setNumber}</Text>
       <Text style={sr.prev}>{prevStr}</Text>
       <TextInput
-        style={[sr.input, set.completed && sr.inputDone]}
+        style={[sr.input, set.completed && sr.inputDone, !set.weightEdited && !!set.weight && sr.inputSuggested]}
         value={set.weight}
         onChangeText={onUpdateWeight}
         placeholder="0"
@@ -83,7 +84,7 @@ function SetRow({
         maxLength={6}
       />
       <TextInput
-        style={[sr.input, set.completed && sr.inputDone]}
+        style={[sr.input, set.completed && sr.inputDone, !set.repsEdited && !!set.reps && sr.inputSuggested]}
         value={set.reps}
         onChangeText={onUpdateReps}
         placeholder="0"
@@ -101,10 +102,11 @@ function SetRow({
 const sr = StyleSheet.create({
   row:      { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
   rowDone:  { opacity: 0.7 },
-  num:      { width: 20, fontSize: 13, fontWeight: '700', color: colors.text.muted, textAlign: 'center' },
+  num:      { width: 28, fontSize: 13, fontWeight: '700', color: colors.text.muted, textAlign: 'center' },
   prev:     { width: 52, fontSize: 12, color: colors.text.muted, textAlign: 'center' },
-  input:    { flex: 1, backgroundColor: colors.bg.input, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, height: 36, textAlign: 'center', color: colors.text.primary, fontSize: 15, fontWeight: '600' },
-  inputDone:{ borderColor: `${colors.accent.success}50` },
+  input:         { flex: 1, backgroundColor: colors.bg.input, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, height: 36, textAlign: 'center', color: colors.text.primary, fontSize: 15, fontWeight: '600' },
+  inputDone:     { borderColor: `${colors.accent.success}50` },
+  inputSuggested:{ color: colors.text.muted },
   check:    { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
   checkDone:{ backgroundColor: colors.accent.success, borderColor: colors.accent.success },
 });
@@ -136,7 +138,16 @@ function ExerciseCard({
           <Text style={ec.name}>{ex.exerciseName}</Text>
           <Text style={ec.meta}>{ex.repMin}–{ex.repMax} reps · {ex.restSeconds}s rest</Text>
           {hint && (
-            <Text style={[ec.hint, hint.up && ec.hintUp]}>{hint.text}</Text>
+            <View style={ec.hintRow}>
+              <Ionicons
+                name={hint.direction === 'up' ? 'trending-up' : hint.direction === 'down' ? 'trending-down' : 'remove'}
+                size={12}
+                color={hint.direction === 'up' ? colors.accent.success : hint.direction === 'down' ? colors.accent.danger : colors.text.muted}
+              />
+              <Text style={[ec.hint, hint.direction === 'up' && ec.hintUp, hint.direction === 'down' && ec.hintDown]}>
+                {hint.text}
+              </Text>
+            </View>
           )}
         </View>
         <View style={ec.headerRight}>
@@ -150,7 +161,7 @@ function ExerciseCard({
 
       {/* Column headers */}
       <View style={ec.colHeader}>
-        <Text style={[ec.colLabel, { width: 20 }]}>SET</Text>
+        <Text style={[ec.colLabel, { width: 28 }]}>SET</Text>
         <Text style={[ec.colLabel, { width: 52 }]}>PREV</Text>
         <Text style={[ec.colLabel, { flex: 1 }]}>LBS</Text>
         <Text style={[ec.colLabel, { flex: 1 }]}>REPS</Text>
@@ -194,8 +205,10 @@ const ec = StyleSheet.create({
   header:     { flexDirection: 'row', alignItems: 'flex-start', padding: spacing.md, paddingBottom: spacing.sm, gap: spacing.sm },
   name:       { fontSize: 15, fontWeight: '700', color: colors.text.primary },
   meta:       { fontSize: 11, color: colors.text.muted, marginTop: 2 },
-  hint:       { fontSize: 11, color: colors.text.muted, marginTop: 4, fontStyle: 'italic' },
+  hintRow:    { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  hint:       { fontSize: 11, color: colors.text.muted, fontStyle: 'italic', flex: 1 },
   hintUp:     { color: colors.accent.success },
+  hintDown:   { color: colors.accent.danger },
   headerRight:{ alignItems: 'flex-end', gap: 6 },
   progress:   { fontSize: 12, fontWeight: '700', color: colors.text.muted },
   progressDone:{ color: colors.accent.success },

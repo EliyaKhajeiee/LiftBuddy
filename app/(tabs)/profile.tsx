@@ -219,8 +219,8 @@ export default function ProfileScreen() {
         {/* CACA MODE */}
         <View style={styles.cacaRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cacaTitle}>CACA MODE</Text>
-            <Text style={styles.cacaSub}>Grow your character by lifting</Text>
+            <Text style={styles.cacaTitle}>BUDDY MODE</Text>
+            <Text style={styles.cacaSub}>Grow your buddy by lifting</Text>
           </View>
           <Switch
             value={cacaEnabled}

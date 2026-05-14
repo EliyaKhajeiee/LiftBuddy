@@ -80,25 +80,10 @@ var topLight = new THREE.DirectionalLight(0xffffff, 1.5);
 topLight.position.set(0, 10, 5);
 scene.add(topLight);
 
-// ── Floor ─────────────────────────────────────────────────────────────────────
-var floorGeo = new THREE.CircleGeometry(6, 48);
-var floorMat = new THREE.MeshStandardMaterial({
-  color: 0x110020, roughness: 0.9, metalness: 0.1
-});
-var floor = new THREE.Mesh(floorGeo, floorMat);
-floor.rotation.x = -Math.PI / 2;
-floor.receiveShadow = true;
-scene.add(floor);
-
-// grid lines
-var gridHelper = new THREE.GridHelper(12, 24, 0xff6600, 0x220033);
-gridHelper.position.y = 0.001;
-scene.add(gridHelper);
-
-// glow ring under character
-var ringGeo = new THREE.RingGeometry(0.4, 0.7, 48);
+// ── Subtle glow disc under character (no floor/grid) ─────────────────────────
+var ringGeo = new THREE.RingGeometry(0.3, 0.55, 48);
 var ringMat = new THREE.MeshBasicMaterial({
-  color: 0xff7700, side: THREE.DoubleSide, transparent: true, opacity: 0.35
+  color: 0xff7700, side: THREE.DoubleSide, transparent: true, opacity: 0.25
 });
 var ring = new THREE.Mesh(ringGeo, ringMat);
 ring.rotation.x = -Math.PI / 2;
@@ -149,7 +134,7 @@ loader.load(
     model = gltf.scene;
 
     // scale based on muscle level
-    model.scale.setScalar(SCALE * 0.9);
+    model.scale.setScalar(SCALE * 0.42);
     model.position.set(0, 0, 0);
     model.castShadow = true;
 

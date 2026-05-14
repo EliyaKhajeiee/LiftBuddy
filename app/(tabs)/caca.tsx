@@ -55,14 +55,14 @@ function muscleFromLevel(lvl: number): number {
 }
 
 function levelTitle(lvl: number): string {
-  if (lvl < 3)  return 'NEWBORN CACA';
+  if (lvl < 3)  return 'BABY BUDDY';
   if (lvl < 6)  return 'BABY GAINS';
   if (lvl < 10) return 'GETTING THERE';
   if (lvl < 15) return 'SWOLE RISING';
   if (lvl < 22) return 'THICK & SOLID';
   if (lvl < 30) return 'BUILT DIFFERENT';
   if (lvl < 40) return 'ABSOLUTE UNIT';
-  return 'CACA GOD MODE';
+  return 'BUDDY GOD MODE';
 }
 
 function fmtVolume(v: number) {

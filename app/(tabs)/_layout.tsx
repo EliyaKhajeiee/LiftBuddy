@@ -74,7 +74,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="caca"
           options={{
-            title: 'CACA',
+            title: 'Buddy',
             href: cacaEnabled ? undefined : null,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? 'body' : 'body-outline'} size={24} color={color} />

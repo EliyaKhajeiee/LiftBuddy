@@ -92,6 +92,13 @@ service cloud.firestore {
 
     // ── Weekly Check-ins (subcollection per user) ──────────────────────────
     match /weeklyCheckins/{uid}/checkins/{checkinId} {
+      allow write: if request.auth.uid == uid;
+      allow read:  if request.auth.uid == uid
+                   || exists(/databases/$(database)/documents/users/$(uid)/friends/$(request.auth.uid));
+    }
+
+    // ── Custom Exercises (per user) ────────────────────────────────────────
+    match /customExercises/{uid}/exercises/{exerciseId} {
       allow read, write: if request.auth.uid == uid;
     }
   }

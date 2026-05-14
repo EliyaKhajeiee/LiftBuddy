@@ -105,26 +105,27 @@ const rr = StyleSheet.create({
 
 // ── Friend row ─────────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, onRemove }: { friend: FriendEntry; onRemove: () => void }) {
+function FriendRow({ friend, onPress, onRemove }: { friend: FriendEntry; onPress: () => void; onRemove: () => void }) {
   return (
-    <View style={fr.row}>
+    <TouchableOpacity style={fr.row} onPress={onPress} activeOpacity={0.8}>
       <Avatar url={friend.avatarUrl} name={friend.displayName} />
       <View style={fr.text}>
         <Text style={fr.name}>{friend.displayName}</Text>
-        <Text style={fr.sub}>Friends</Text>
+        <Text style={fr.sub}>Tap to view profile</Text>
       </View>
-      <TouchableOpacity onPress={onRemove} style={fr.removeBtn} activeOpacity={0.7}>
+      <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
+      <TouchableOpacity onPress={onRemove} style={fr.removeBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Ionicons name="person-remove-outline" size={16} color={colors.text.muted} />
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 const fr = StyleSheet.create({
   row:       { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.bg.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
   text:      { flex: 1, gap: 2 },
   name:      { fontSize: 15, fontWeight: '700', color: colors.text.primary },
-  sub:       { fontSize: 12, color: colors.accent.success },
-  removeBtn: { padding: 8 },
+  sub:       { fontSize: 12, color: colors.text.muted },
+  removeBtn: { padding: 4 },
 });
 
 // ── Main ───────────────────────────────────────────────────────────────────────
@@ -316,6 +317,7 @@ export default function FriendsScreen() {
           renderItem={({ item }) => (
             <FriendRow
               friend={item}
+              onPress={() => router.push({ pathname: '/friend-profile' as any, params: { uid: item.uid, name: item.displayName } })}
               onRemove={() => handleRemove(item.uid, item.displayName)}
             />
           )}

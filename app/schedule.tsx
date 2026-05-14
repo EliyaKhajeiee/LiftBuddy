@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
 import { useUserStore }  from '../src/store/userStore';
@@ -140,10 +140,46 @@ function ExercisePicker({
   onSelect: (ex: Exercise) => void;
   onClose: () => void;
 }) {
-  const [search, setSearch] = useState('');
-  const filtered = EXERCISES.filter(ex =>
+  const { user }    = useAuthStore();
+  const { data }    = useUserStore();
+  const [search,    setSearch]    = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [creating,  setCreating]  = useState(false);
+
+  const customExs: Exercise[] = (data as any)?.customExercises ?? [];
+
+  const allExercises = [...customExs, ...EXERCISES];
+  const filtered = allExercises.filter(ex =>
     !search || ex.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  async function createCustom() {
+    const name = customName.trim();
+    if (!name || !user?.uid) return;
+    setCreating(true);
+    const id = `custom_${Date.now()}`;
+    const ex: Exercise = {
+      exerciseId:     id,
+      name,
+      category:       'isolation',
+      muscleGroups:   { primary: ['core'], secondary: [] },
+      equipment:      ['bodyweight'],
+      difficulty:     'beginner',
+      movementPattern:'push',
+      instructions:   [],
+      videoUrl:       null,
+      imageUrl:       null,
+    };
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        customExercises: arrayUnion(ex),
+      });
+      onSelect(ex);
+      onClose();
+    } catch { Alert.alert('Error', 'Could not save custom exercise.'); }
+    finally { setCreating(false); setCustomName(''); setShowCreate(false); }
+  }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -154,56 +190,106 @@ function ExercisePicker({
             <Ionicons name="close" size={24} color={colors.text.primary} />
           </TouchableOpacity>
         </View>
-        <View style={ep.searchRow}>
-          <Ionicons name="search" size={16} color={colors.text.muted} />
-          <TextInput
-            style={ep.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search exercises…"
-            placeholderTextColor={colors.text.muted}
-            autoFocus
-          />
-          {!!search && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={16} color={colors.text.muted} />
+
+        {/* Create custom */}
+        {showCreate ? (
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={ep.createWrap}>
+            <Text style={ep.createLabel}>CUSTOM EXERCISE NAME</Text>
+            <TextInput
+              style={ep.createInput}
+              value={customName}
+              onChangeText={setCustomName}
+              placeholder="e.g. Ab Crunches"
+              placeholderTextColor={colors.text.muted}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={createCustom}
+            />
+            <View style={ep.createActions}>
+              <TouchableOpacity style={ep.cancelBtn} onPress={() => { setShowCreate(false); setCustomName(''); }} activeOpacity={0.7}>
+                <Text style={ep.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[ep.createBtn, !customName.trim() && { opacity: 0.4 }]} onPress={createCustom} disabled={!customName.trim() || creating} activeOpacity={0.8}>
+                {creating ? <ActivityIndicator color="#fff" size="small" /> : <Text style={ep.createBtnText}>Add & Select</Text>}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        ) : (
+          <>
+            <View style={ep.searchRow}>
+              <Ionicons name="search" size={16} color={colors.text.muted} />
+              <TextInput
+                style={ep.searchInput}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search exercises…"
+                placeholderTextColor={colors.text.muted}
+                autoFocus
+              />
+              {!!search && (
+                <TouchableOpacity onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={16} color={colors.text.muted} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity style={ep.createCustomBtn} onPress={() => setShowCreate(true)} activeOpacity={0.8}>
+              <Ionicons name="add-circle-outline" size={16} color={colors.accent.primary} />
+              <Text style={ep.createCustomText}>Create Custom Exercise</Text>
             </TouchableOpacity>
-          )}
-        </View>
-        <FlatList
-          data={filtered}
-          keyExtractor={ex => ex.exerciseId}
-          contentContainerStyle={{ paddingBottom: 40 }}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={ep.row}
-              onPress={() => { onSelect(item); onClose(); }}
-              activeOpacity={0.7}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={ep.exName}>{item.name}</Text>
-                <Text style={ep.exMeta}>{item.muscleGroups.primary.join(', ')} · {item.category}</Text>
-              </View>
-              <Ionicons name="add-circle-outline" size={22} color={colors.accent.primary} />
-            </TouchableOpacity>
-          )}
-          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: spacing.lg }} />}
-        />
+            <FlatList
+              data={filtered}
+              keyExtractor={ex => ex.exerciseId}
+              contentContainerStyle={{ paddingBottom: 40 }}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={ep.row}
+                  onPress={() => { onSelect(item); onClose(); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <View style={ep.exNameRow}>
+                      <Text style={ep.exName}>{item.name}</Text>
+                      {item.exerciseId.startsWith('custom_') && (
+                        <View style={ep.customBadge}><Text style={ep.customBadgeText}>Custom</Text></View>
+                      )}
+                    </View>
+                    <Text style={ep.exMeta}>{item.muscleGroups.primary.join(', ')} · {item.category}</Text>
+                  </View>
+                  <Ionicons name="add-circle-outline" size={22} color={colors.accent.primary} />
+                </TouchableOpacity>
+              )}
+              ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: spacing.lg }} />}
+            />
+          </>
+        )}
       </SafeAreaView>
     </Modal>
   );
 }
 
 const ep = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: colors.bg.primary },
-  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
-  title:       { fontSize: 18, fontWeight: '700', color: colors.text.primary },
-  searchRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, margin: spacing.md, backgroundColor: colors.bg.input, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm, height: 44 },
-  searchInput: { flex: 1, color: colors.text.primary, fontSize: 15 },
-  row:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  exName:      { fontSize: 15, fontWeight: '600', color: colors.text.primary },
-  exMeta:      { fontSize: 12, color: colors.text.muted, marginTop: 2, textTransform: 'capitalize' },
+  container:       { flex: 1, backgroundColor: colors.bg.primary },
+  header:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title:           { fontSize: 18, fontWeight: '700', color: colors.text.primary },
+  searchRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, margin: spacing.md, backgroundColor: colors.bg.input, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm, height: 44 },
+  searchInput:     { flex: 1, color: colors.text.primary, fontSize: 15 },
+  row:             { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  exNameRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  exName:          { fontSize: 15, fontWeight: '600', color: colors.text.primary },
+  exMeta:          { fontSize: 12, color: colors.text.muted, marginTop: 2, textTransform: 'capitalize' },
+  customBadge:     { backgroundColor: `${colors.accent.primary}20`, borderRadius: radius.full, paddingHorizontal: 6, paddingVertical: 2 },
+  customBadgeText: { fontSize: 9, fontWeight: '800', color: colors.accent.primary, letterSpacing: 0.5 },
+  createCustomBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: `${colors.accent.primary}30`, backgroundColor: `${colors.accent.primary}08` },
+  createCustomText:{ fontSize: 14, fontWeight: '700', color: colors.accent.primary },
+  createWrap:      { flex: 1, padding: spacing.lg, gap: spacing.md },
+  createLabel:     { fontSize: 10, fontWeight: '700', letterSpacing: 1.8, color: colors.text.muted },
+  createInput:     { backgroundColor: colors.bg.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, height: 54, fontSize: 18, fontWeight: '700', color: colors.text.primary },
+  createActions:   { flexDirection: 'row', gap: spacing.sm },
+  cancelBtn:       { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  cancelText:      { fontSize: 15, fontWeight: '600', color: colors.text.secondary },
+  createBtn:       { flex: 2, height: 48, justifyContent: 'center', alignItems: 'center', borderRadius: radius.md, backgroundColor: colors.accent.primary },
+  createBtnText:   { fontSize: 15, fontWeight: '800', color: '#fff' },
 });
 
 // ── Day editor modal ───────────────────────────────────────────────────────────

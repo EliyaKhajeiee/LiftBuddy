@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, FlatList,
+  StyleSheet, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect } from 'react';
@@ -83,9 +83,8 @@ export default function CheckinScreen() {
   const [weight,    setWeight]    = useState('');
   const [mood,      setMood]      = useState<1|2|3|4|5|null>(null);
   const [notes,     setNotes]     = useState('');
-  const [photoUri,  setPhotoUri]  = useState<string | null>(null);
-  const [photoUrl,  setPhotoUrl]  = useState<string | null>(null);
-  const [pose,      setPose]      = useState<string | null>(null);
+  // pose → { uri: local, url: uploaded }
+  const [posePhotos, setPosePhotos] = useState<Record<string, { uri?: string; url?: string }>>({});
   const [measurements, setMeasurements] = useState({
     chest: '', waist: '', hips: '', leftArm: '', rightArm: '', leftThigh: '', rightThigh: '',
   });
@@ -100,8 +99,11 @@ export default function CheckinScreen() {
         if (d.weight)  setWeight(String(d.weight));
         if (d.mood)    setMood(d.mood);
         if (d.notes)   setNotes(d.notes);
-        if (d.photos?.[0]?.url) setPhotoUrl(d.photos[0].url);
-        if (d.photos?.[0]?.pose) setPose(d.photos[0].pose);
+        if (d.photos?.length) {
+          const map: Record<string, { url: string }> = {};
+          (d.photos as any[]).forEach((p: any) => { if (p.pose && p.url) map[p.pose] = { url: p.url }; });
+          setPosePhotos(map);
+        }
         if (d.measurements) {
           const m = d.measurements;
           setMeasurements({
@@ -126,56 +128,57 @@ export default function CheckinScreen() {
     }
   }, [data]);
 
-  async function pickPhoto() {
+  async function pickPosePhoto(poseName: string) {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission needed', 'Allow photo access to add a progress photo.');
-      return;
-    }
+    if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo access.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'] as any,
-      allowsEditing: true,
-      aspect: [3, 4],
-      quality: 0.85,
+      mediaTypes: ['images'] as any, allowsEditing: true, aspect: [3, 4], quality: 0.85,
     });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    if (!result.canceled) setPosePhotos(p => ({ ...p, [poseName]: { ...p[poseName], uri: result.assets[0].uri } }));
   }
 
-  async function takePhoto() {
+  async function takePosePhoto(poseName: string) {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow camera access to take a progress photo.');
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [3, 4],
-        quality: 0.85,
-      });
-      if (!result.canceled) setPhotoUri(result.assets[0].uri);
+      if (!perm.granted) { Alert.alert('Permission needed', 'Allow camera access.'); return; }
+      const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [3, 4], quality: 0.85 });
+      if (!result.canceled) setPosePhotos(p => ({ ...p, [poseName]: { ...p[poseName], uri: result.assets[0].uri } }));
     } catch {
-      Alert.alert('Camera unavailable', 'Use the Gallery option to pick a photo instead.');
+      Alert.alert('Camera unavailable', 'Use Gallery instead.');
     }
+  }
+
+  function removePosePhoto(poseName: string) {
+    setPosePhotos(p => { const next = { ...p }; delete next[poseName]; return next; });
   }
 
   async function save() {
     if (!user?.uid) return;
     setSaving(true);
     try {
-      let uploadedUrl = photoUrl;
+      const now = Timestamp.now();
 
-      // Upload new photo if picked
-      if (photoUri && !photoUri.startsWith('http')) {
-        const resp = await fetch(photoUri);
-        const blob = await resp.blob();
-        const storageRef = ref(storage, `checkins/${user.uid}/${docId}/photo_0.jpg`);
-        await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-        uploadedUrl = await getDownloadURL(storageRef);
+      // Upload any new local photos
+      const photoEntries: any[] = [];
+      let isFirst = true;
+      for (const [poseName, photo] of Object.entries(posePhotos)) {
+        let finalUrl = photo.url;
+        if (photo.uri && !photo.uri.startsWith('http')) {
+          const safeName = poseName.replace(/\s+/g, '_').replace(/[^a-z0-9_]/gi, '').toLowerCase();
+          const path = `checkins/${user.uid}/${docId}/${safeName}.jpg`;
+          const resp = await fetch(photo.uri);
+          const blob = await resp.blob();
+          await uploadBytes(ref(storage, path), blob, { contentType: 'image/jpeg' });
+          finalUrl = await getDownloadURL(ref(storage, path));
+        }
+        if (finalUrl) {
+          const safeName = poseName.replace(/\s+/g, '_').replace(/[^a-z0-9_]/gi, '').toLowerCase();
+          photoEntries.push({ url: finalUrl, storagePath: `checkins/${user.uid}/${docId}/${safeName}.jpg`, takenAt: now, note: '', isMain: isFirst, pose: poseName });
+          isFirst = false;
+        }
       }
 
       const parsedWeight = parseFloat(weight) || null;
-      const now          = Timestamp.now();
       const m            = measurements;
 
       await setDoc(
@@ -191,9 +194,7 @@ export default function CheckinScreen() {
           weight:     parsedWeight,
           notes:      notes.trim(),
           mood:       mood ?? null,
-          ...(uploadedUrl
-            ? { photos: [{ url: uploadedUrl, storagePath: `checkins/${user.uid}/${docId}/photo_0.jpg`, takenAt: now, note: '', isMain: true, ...(pose ? { pose } : {}) }] }
-            : (!isEdit ? { photos: [] } : {})),
+          ...(photoEntries.length > 0 ? { photos: photoEntries } : (!isEdit ? { photos: [] } : {})),
           measurements: {
             chest:      parseFloat(m.chest)      || null,
             waist:      parseFloat(m.waist)      || null,
@@ -338,64 +339,41 @@ export default function CheckinScreen() {
             </View>
           </View>
 
-          {/* ── Progress Photo ────────────────────────────────────────────── */}
+          {/* ── Progress Photos (per pose) ────────────────────────────── */}
           <View style={s.section}>
-            <Text style={s.sectionLabel}>PROGRESS PHOTO</Text>
-            {/* Pose selector */}
-            <FlatList
-              data={POSES as unknown as string[]}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={item => item}
-              contentContainerStyle={s.poseList}
-              renderItem={({ item }) => {
-                const active = pose === item;
-                return (
-                  <TouchableOpacity
-                    style={[s.poseChip, active && s.poseChipActive]}
-                    onPress={() => setPose(active ? null : item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.poseChipText, active && s.poseChipTextActive]}>{item}</Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            <View style={s.card}>
-              {photoUri || photoUrl ? (
-                <View style={s.photoPreviewWrap}>
-                  <Image
-                    source={{ uri: photoUri ?? photoUrl! }}
-                    style={s.photoPreview}
-                    resizeMode="cover"
-                  />
-                  <TouchableOpacity
-                    style={s.photoRemoveBtn}
-                    onPress={() => { setPhotoUri(null); setPhotoUrl(null); }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="close-circle" size={24} color={colors.accent.danger} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={s.photoActions}>
-                  <TouchableOpacity style={s.photoBtn} onPress={takePhoto} activeOpacity={0.8}>
-                    <View style={s.photoBtnIcon}>
-                      <Ionicons name="camera-outline" size={22} color={colors.accent.primary} />
+            <Text style={s.sectionLabel}>PROGRESS PHOTOS</Text>
+            <Text style={s.photoHint}>Optional — take a photo for any pose you want to track</Text>
+            {(POSES as unknown as string[]).map(poseName => {
+              const photo = posePhotos[poseName];
+              const src   = photo?.uri ?? photo?.url;
+              return (
+                <View key={poseName} style={s.poseCard}>
+                  <View style={s.poseCardHeader}>
+                    <Text style={s.poseCardName}>{poseName}</Text>
+                    {src && (
+                      <TouchableOpacity onPress={() => removePosePhoto(poseName)} activeOpacity={0.7}>
+                        <Ionicons name="close-circle" size={20} color={colors.accent.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {src ? (
+                    <Image source={{ uri: src }} style={s.poseThumb} resizeMode="cover" />
+                  ) : (
+                    <View style={s.poseActions}>
+                      <TouchableOpacity style={s.poseActionBtn} onPress={() => takePosePhoto(poseName)} activeOpacity={0.8}>
+                        <Ionicons name="camera-outline" size={18} color={colors.accent.primary} />
+                        <Text style={s.poseActionText}>Camera</Text>
+                      </TouchableOpacity>
+                      <View style={s.poseDivider} />
+                      <TouchableOpacity style={s.poseActionBtn} onPress={() => pickPosePhoto(poseName)} activeOpacity={0.8}>
+                        <Ionicons name="image-outline" size={18} color={colors.accent.primary} />
+                        <Text style={s.poseActionText}>Gallery</Text>
+                      </TouchableOpacity>
                     </View>
-                    <Text style={s.photoBtnText}>Camera</Text>
-                  </TouchableOpacity>
-                  <View style={s.photoDivider} />
-                  <TouchableOpacity style={s.photoBtn} onPress={pickPhoto} activeOpacity={0.8}>
-                    <View style={s.photoBtnIcon}>
-                      <Ionicons name="image-outline" size={22} color={colors.accent.primary} />
-                    </View>
-                    <Text style={s.photoBtnText}>Gallery</Text>
-                  </TouchableOpacity>
+                  )}
                 </View>
-              )}
-              <Text style={s.photoHint}>3:4 ratio recommended for best comparison</Text>
-            </View>
+              );
+            })}
           </View>
 
           {/* ── Measurements ─────────────────────────────────────────────── */}
@@ -488,23 +466,18 @@ const s = StyleSheet.create({
   // Notes
   notesInput: { fontSize: 15, color: colors.text.primary, lineHeight: 22, minHeight: 90 },
 
-  // Pose
-  poseList:         { gap: spacing.xs, paddingVertical: spacing.xs },
-  poseChip:         { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full, backgroundColor: colors.bg.card, borderWidth: 1, borderColor: colors.border },
-  poseChipActive:   { backgroundColor: `${colors.accent.primary}15`, borderColor: colors.accent.primary },
-  poseChipText:     { fontSize: 13, fontWeight: '600', color: colors.text.secondary },
-  poseChipTextActive:{ color: colors.accent.primary },
+  // Photo hint
+  photoHint: { fontSize: 11, color: colors.text.muted, marginBottom: spacing.xs },
 
-  // Photo
-  photoActions:   { flexDirection: 'row', alignItems: 'center' },
-  photoBtn:       { flex: 1, alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
-  photoBtnIcon:   { width: 52, height: 52, borderRadius: radius.lg, backgroundColor: `${colors.accent.primary}12`, borderWidth: 1.5, borderColor: `${colors.accent.primary}30`, justifyContent: 'center', alignItems: 'center' },
-  photoBtnText:   { fontSize: 13, fontWeight: '600', color: colors.text.secondary },
-  photoDivider:   { width: 1, height: 60, backgroundColor: colors.border },
-  photoHint:      { fontSize: 11, color: colors.text.muted, textAlign: 'center', marginTop: spacing.sm },
-  photoPreviewWrap:{ position: 'relative', borderRadius: radius.md, overflow: 'hidden' },
-  photoPreview:   { width: '100%', height: 220, borderRadius: radius.md },
-  photoRemoveBtn: { position: 'absolute', top: spacing.sm, right: spacing.sm },
+  // Per-pose cards
+  poseCard:       { backgroundColor: colors.bg.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: spacing.sm },
+  poseCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  poseCardName:   { fontSize: 14, fontWeight: '700', color: colors.text.primary },
+  poseThumb:      { width: '100%', height: 200, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
+  poseActions:    { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border },
+  poseActionBtn:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.md },
+  poseActionText: { fontSize: 13, fontWeight: '600', color: colors.accent.primary },
+  poseDivider:    { width: 1, height: 36, backgroundColor: colors.border },
 
   // Measurements
   measurementsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 },

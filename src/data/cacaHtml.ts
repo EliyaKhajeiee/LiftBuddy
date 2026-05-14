@@ -8,596 +8,396 @@ export function buildCacaHtml(muscle: number, level: number): string {
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;background:#060010;overflow:hidden}
-canvas{display:block;touch-action:none}
-#anim-tag{
-  position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
+html,body{width:100%;height:100%;background:#080012;overflow:hidden}
+canvas{display:block}
+#label{
+  position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
   font-family:-apple-system,sans-serif;font-size:10px;font-weight:800;
-  letter-spacing:3px;color:rgba(255,122,0,0.75);pointer-events:none;
-  text-shadow:0 0 12px rgba(255,122,0,0.5);
+  letter-spacing:3px;color:rgba(255,120,0,0.8);pointer-events:none;
+  text-shadow:0 0 10px rgba(255,100,0,0.6);white-space:nowrap;
 }
 </style>
 </head>
 <body>
-<div id="anim-tag">READY TO LIFT</div>
-<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+<canvas id="c"></canvas>
+<div id="label">READY</div>
 <script>
-var M = ${m}, LVL = ${lvl};
-var W = window.innerWidth, H = window.innerHeight;
-
-// ── Scene ──────────────────────────────────────────────────────────────────
-var scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x060010, 0.09);
-
-var camera = new THREE.PerspectiveCamera(50, W/H, 0.1, 50);
-camera.position.set(0, 1.7, 4.6);
-camera.lookAt(0, 1.1, 0);
-
-var renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.setSize(W, H);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
-document.body.appendChild(renderer.domElement);
-
-// ── Lights ─────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0x1a0030, 1.2));
-
-var keyLight = new THREE.SpotLight(0xff8800, 10, 18, Math.PI/5, 0.35);
-keyLight.position.set(2.2, 5.5, 3.2);
-keyLight.castShadow = true;
-keyLight.shadow.mapSize.width = keyLight.shadow.mapSize.height = 1024;
-scene.add(keyLight); scene.add(keyLight.target);
-
-var fillLight = new THREE.PointLight(0x4422ff, 2.5, 9);
-fillLight.position.set(-3, 2, 1.5);
-scene.add(fillLight);
-
-var rimLight = new THREE.PointLight(0xff5500, 3.5, 9);
-rimLight.position.set(0, 3, -4);
-scene.add(rimLight);
-
-var topLight = new THREE.SpotLight(0xffffff, 3, 10, Math.PI/8, 0.6);
-topLight.position.set(0, 7, 0);
-topLight.castShadow = false;
-scene.add(topLight); scene.add(topLight.target);
-
-// ── Floor / environment ─────────────────────────────────────────────────────
-var floorMat = new THREE.MeshStandardMaterial({color:0x050008,roughness:0.95,metalness:0.05});
-var floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(30,30), floorMat);
-floorMesh.rotation.x = -Math.PI/2; floorMesh.position.y = -0.01;
-floorMesh.receiveShadow = true; scene.add(floorMesh);
-
-// Grid
-var grid = new THREE.GridHelper(20, 28, 0xff7a00, 0x1a0028);
-grid.material.opacity = 0.22; grid.material.transparent = true;
-scene.add(grid);
-
-// Platform
-var platMat = new THREE.MeshStandardMaterial({color:0x0a0018,roughness:0.6,metalness:0.5});
-var plat = new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,0.045,64), platMat);
-plat.receiveShadow = true; scene.add(plat);
-
-// Platform rings
-var rings = [];
-[0.6,0.9,1.15].forEach(function(r,i){
-  var mat = new THREE.MeshStandardMaterial({
-    color:0xff7a00, emissive:0xff7a00,
-    emissiveIntensity: 0.4+i*0.25
-  });
-  var ring = new THREE.Mesh(new THREE.TorusGeometry(r,0.012,8,80), mat);
-  ring.rotation.x = Math.PI/2; ring.position.y = 0.025;
-  scene.add(ring); rings.push(ring);
-});
-
-// Background spotlights on ceiling (theatrical)
-var ceilSpots = [];
-[-3,0,3].forEach(function(x){
-  var s = new THREE.SpotLight(0xff6600, 1.2, 14, Math.PI/14, 0.8);
-  s.position.set(x, 8, -2);
-  scene.add(s); scene.add(s.target);
-  s.target.position.set(x*0.3, 0, 0);
-  ceilSpots.push(s);
-});
-
-// Floating dust particles
-var dustPts = [], dustMat = new THREE.MeshBasicMaterial({color:0xff8800,transparent:true});
-for(var i=0;i<40;i++){
-  var p = new THREE.Mesh(new THREE.SphereGeometry(0.012+Math.random()*0.018,4,4), dustMat.clone());
-  p.position.set((Math.random()-0.5)*9, Math.random()*5.5, (Math.random()-0.5)*5-1);
-  p.userData.vy = 0.003+Math.random()*0.006;
-  p.userData.ph = Math.random()*Math.PI*2;
-  scene.add(p); dustPts.push(p);
-}
-
-// ── Materials ───────────────────────────────────────────────────────────────
-function lerp(a,b,t){return a+(b-a)*t;}
-function mat(col,rough,metal,emCol,emInt){
-  var o={color:col,roughness:rough,metalness:metal};
-  if(emCol!=null){o.emissive=emCol;o.emissiveIntensity=emInt||0;}
-  return new THREE.MeshStandardMaterial(o);
-}
-var bodyMat  = mat(0x111111, 0.18, 0.55);
-var jointMat = mat(0x0c0c0c, 0.12, 0.65);
-var whiteMat = mat(0xeeeeee, 0.45, 0.0);
-var darkMat  = mat(0x060606, 0.8,  0.0);
-var accMat   = mat(0xff7a00, 0.25, 0.2, 0xff7a00, 0.55);
-var glowMat  = mat(0xff7a00, 0.2,  0.1, 0xff7a00, 2.2);
-var metalMat = mat(0xaaaaaa, 0.18, 0.9);
-var plateMat2= mat(0x1a1a1a, 0.45, 0.75);
-
-// ── Proportions ─────────────────────────────────────────────────────────────
-var p = {
-  headR:    lerp(0.285, 0.245, M),
-  neckR:    lerp(0.09,  0.145, M),
-  torsoW:   lerp(0.44,  0.74,  M),
-  torsoH:   lerp(0.58,  0.78,  M),
-  torsoD:   lerp(0.24,  0.42,  M),
-  shldrR:   lerp(0.10,  0.185, M),
-  uArmR:    lerp(0.074, 0.142, M),
-  uArmH:    lerp(0.36,  0.52,  M),
-  lArmR:    lerp(0.058, 0.102, M),
-  lArmH:    lerp(0.32,  0.44,  M),
-  handR:    lerp(0.054, 0.088, M),
-  hipW:     lerp(0.32,  0.44,  M),
-  thighR:   lerp(0.095, 0.158, M),
-  thighH:   lerp(0.50,  0.60,  M),
-  shinR:    lerp(0.074, 0.115, M),
-  shinH:    lerp(0.44,  0.52,  M),
-};
-
-function mesh(geo, mat2){
-  var m2 = new THREE.Mesh(geo, mat2);
-  m2.castShadow = true; m2.receiveShadow = true;
-  return m2;
-}
-
-// ── Root ────────────────────────────────────────────────────────────────────
-var root = new THREE.Group();
-root.position.y = 0.045;
-scene.add(root);
-
-// Hips pivot
-var hips = new THREE.Group();
-var hipsY = lerp(1.02, 1.18, M);
-hips.position.y = hipsY;
-root.add(hips);
-
-// ── Legs ────────────────────────────────────────────────────────────────────
-var legSideX = p.hipW / 2;
-
-function makeLeg(side){
-  var g = new THREE.Group();
-  g.position.set(side*legSideX, 0, 0);
-
-  // Thigh
-  var th = mesh(new THREE.CylinderGeometry(p.thighR*0.86,p.thighR,p.thighH,14), bodyMat);
-  th.position.y = -p.thighH/2; g.add(th);
-
-  // Knee joint sphere
-  g.add(mesh(new THREE.SphereGeometry(p.thighR*0.80,10,10), jointMat)).position.y = -p.thighH;
-
-  // Knee pivot
-  var kp = new THREE.Group();
-  kp.position.y = -p.thighH; g.add(kp);
-
-  // Shin
-  var sh = mesh(new THREE.CylinderGeometry(p.shinR*0.80,p.shinR,p.shinH,12), bodyMat);
-  sh.position.y = -p.shinH/2; kp.add(sh);
-
-  // Ankle
-  kp.add(mesh(new THREE.SphereGeometry(p.shinR*0.75,8,8), jointMat)).position.y = -p.shinH;
-
-  // Foot
-  var fw = lerp(0.135,0.20,M);
-  var foot = mesh(new THREE.BoxGeometry(fw,0.065,0.27), bodyMat);
-  foot.position.set(side*0.018, -p.shinH-0.025, 0.055); kp.add(foot);
-
-  // Orange sole stripe
-  var sole = mesh(new THREE.BoxGeometry(fw*0.9,0.01,0.26), accMat);
-  sole.position.set(side*0.018, -p.shinH-0.057, 0.055); kp.add(sole);
-
-  hips.add(g);
-  return {legG:g, kneePivot:kp};
-}
-
-var LL = makeLeg(-1), RL = makeLeg(1);
-
-// ── Spine / Torso ───────────────────────────────────────────────────────────
-var spine = new THREE.Group();
-hips.add(spine);
-
-// Waist taper
-var waist = mesh(new THREE.CylinderGeometry(
-  lerp(0.21,0.33,M), lerp(0.23,0.37,M), 0.14, 16), bodyMat);
-waist.position.y = 0.07; spine.add(waist);
-
-// Torso box
-var torso = mesh(new THREE.BoxGeometry(p.torsoW, p.torsoH, p.torsoD), bodyMat);
-torso.position.y = p.torsoH/2 + 0.14; spine.add(torso);
-
-// Chest stripe accent
-var stripe = mesh(new THREE.BoxGeometry(lerp(0.045,0.072,M), p.torsoH*0.58, p.torsoD+0.012), accMat);
-stripe.position.y = p.torsoH*0.56 + 0.14; spine.add(stripe);
-
-// Pec definition
-if(M > 0.25){
-  var pecR = lerp(0,0.135,(M-0.25)/0.75);
-  [-1,1].forEach(function(s){
-    var pec = mesh(new THREE.SphereGeometry(pecR,10,10), bodyMat);
-    pec.position.set(s*p.torsoW*0.25, p.torsoH*0.72+0.14, p.torsoD/2);
-    spine.add(pec);
-  });
-}
-
-// Six-pack definition
-if(M > 0.5){
-  var abR = lerp(0,0.055,(M-0.5)/0.5);
-  for(var row=0;row<3;row++){
-    [-1,1].forEach(function(s){
-      var ab = mesh(new THREE.SphereGeometry(abR,8,8), bodyMat);
-      ab.position.set(s*0.07, p.torsoH*0.35-row*0.095+0.14, p.torsoD/2+0.01);
-      spine.add(ab);
-    });
-  }
-}
-
-var torsoTopY = p.torsoH + 0.14;
-
-// ── Shoulders & Arms ─────────────────────────────────────────────────────────
-var shldrX = p.torsoW/2 + p.shldrR*0.22;
-var shldrY = torsoTopY - 0.065;
-
-function makeArm(side){
-  var sp2 = new THREE.Group(); // shoulder pivot
-  sp2.position.set(side*shldrX, shldrY, 0);
-  spine.add(sp2);
-
-  // Shoulder cap
-  sp2.add(mesh(new THREE.SphereGeometry(p.shldrR,14,14), jointMat));
-
-  // Upper arm
-  var ua = mesh(new THREE.CylinderGeometry(p.uArmR*0.87,p.uArmR,p.uArmH,13), bodyMat);
-  ua.position.y = -p.uArmH/2; sp2.add(ua);
-
-  // Bicep peak
-  if(M > 0.3){
-    var biR = lerp(0,0.095,(M-0.3)/0.7);
-    var bi = mesh(new THREE.SphereGeometry(biR,9,9), bodyMat);
-    bi.position.set(0,-p.uArmH*0.4, p.uArmR*0.62); sp2.add(bi);
-  }
-
-  // Elbow
-  sp2.add(mesh(new THREE.SphereGeometry(p.lArmR*1.05,9,9), jointMat)).position.y = -p.uArmH;
-
-  // Forearm pivot
-  var fp = new THREE.Group();
-  fp.position.y = -p.uArmH; sp2.add(fp);
-
-  var fa = mesh(new THREE.CylinderGeometry(p.lArmR*0.80,p.lArmR,p.lArmH,11), bodyMat);
-  fa.position.y = -p.lArmH/2; fp.add(fa);
-
-  // Wrist
-  fp.add(mesh(new THREE.SphereGeometry(p.handR*0.88,9,9), jointMat)).position.y = -p.lArmH;
-
-  // Hand
-  var hand = mesh(new THREE.SphereGeometry(p.handR,10,10), bodyMat);
-  hand.position.y = -p.lArmH - p.handR*0.35; fp.add(hand);
-
-  return {sp2:sp2, fp:fp};
-}
-
-var LA = makeArm(-1), RA = makeArm(1);
-
-// Traps
-if(M > 0.4){
-  var trR = lerp(0,0.115,(M-0.4)/0.6);
-  [-1,1].forEach(function(s){
-    var tr = mesh(new THREE.SphereGeometry(trR,8,8), bodyMat);
-    tr.position.set(s*p.neckR*1.9, torsoTopY+0.01, 0);
-    spine.add(tr);
-  });
-}
-
-// ── Neck & Head ──────────────────────────────────────────────────────────────
-var neck = mesh(new THREE.CylinderGeometry(p.neckR,p.neckR*1.18,0.17,11), bodyMat);
-neck.position.y = torsoTopY + 0.085; spine.add(neck);
-
-var headG = new THREE.Group();
-var headY2 = torsoTopY + 0.25 + p.headR;
-headG.position.y = headY2; spine.add(headG);
-
-// Skull
-headG.add(mesh(new THREE.SphereGeometry(p.headR,20,20), bodyMat));
-
-// Jaw
-var jaw = mesh(new THREE.SphereGeometry(p.headR*0.70,12,12), bodyMat);
-jaw.scale.set(1.05,0.52,1.0); jaw.position.set(0,-p.headR*0.56,p.headR*0.06);
-headG.add(jaw);
-
-// Brow ridge
-var brow = mesh(new THREE.BoxGeometry(p.headR*0.88,0.035,0.032), bodyMat);
-brow.position.set(0,p.headR*0.24,p.headR*0.88); headG.add(brow);
-
-// Eyes
-var eZ=p.headR*0.87, eX=p.headR*0.365, eY=p.headR*0.09, eR=lerp(0.043,0.035,M);
-[-1,1].forEach(function(s){
-  headG.add(mesh(new THREE.SphereGeometry(eR,10,10), whiteMat))
-    .position.set(s*eX,eY,eZ);
-  headG.add(mesh(new THREE.SphereGeometry(eR*0.53,8,8), darkMat))
-    .position.set(s*eX,eY,eZ+eR*0.58);
-  if(M>0.7){
-    headG.add(mesh(new THREE.SphereGeometry(eR*0.3,6,6), glowMat))
-      .position.set(s*eX,eY,eZ+eR*0.72);
-  }
-  // Eyebrow
-  var eb = mesh(new THREE.BoxGeometry(eR*2.1,0.013,0.016), darkMat);
-  eb.position.set(s*eX,eY+eR*1.6,eZ+0.008);
-  eb.rotation.z = s*lerp(0.05,0.28,M);
-  headG.add(eb);
-});
-
-// Smile
-var smM = M>0.6 ? accMat : whiteMat;
-for(var si=-2;si<=2;si++){
-  var st=si/2;
-  var sm2=mesh(new THREE.SphereGeometry(0.013,6,6),smM);
-  sm2.position.set(st*p.headR*0.30,-p.headR*0.28-Math.abs(st)*p.headR*0.09,eZ*0.97);
-  headG.add(sm2);
-}
-
-// Nose
-var nose = mesh(new THREE.SphereGeometry(0.022,8,8), bodyMat);
-nose.scale.set(0.7,0.55,1.0); nose.position.set(0,-p.headR*0.06,eZ*1.01);
-headG.add(nose);
-
-// Ears
-[-1,1].forEach(function(s){
-  var ear = mesh(new THREE.SphereGeometry(p.headR*0.22,8,8), bodyMat);
-  ear.scale.set(0.38,0.7,0.6);
-  ear.position.set(s*p.headR,p.headR*0.04,0);
-  headG.add(ear);
-});
-
-// ── Dumbbell ────────────────────────────────────────────────────────────────
-function makeDumbbell(parent, py, showDB){
-  var db = new THREE.Group();
-  db.visible = showDB;
-  db.position.y = py;
-
-  var bar = mesh(new THREE.CylinderGeometry(0.022,0.022,0.30,8), metalMat);
-  bar.rotation.z = Math.PI/2; db.add(bar);
-
-  [-0.115,0.115].forEach(function(x){
-    var pl = mesh(new THREE.CylinderGeometry(0.072,0.072,0.042,14), plateMat2);
-    pl.rotation.z = Math.PI/2; pl.position.x = x; db.add(pl);
-    // Orange ring
-    var rng = mesh(new THREE.TorusGeometry(0.052,0.007,6,20), accMat);
-    rng.rotation.y = Math.PI/2; rng.position.x = x; db.add(rng);
-  });
-  parent.add(db);
-  return db;
-}
-
-// Attach dumbbell to right forearm (it follows the arm)
-var dbRight = makeDumbbell(RA.fp, -p.lArmH - p.handR*0.7, false);
-dbRight.rotation.z = Math.PI/2;
-
-// Left hand dumbbell
-var dbLeft = makeDumbbell(LA.fp, -p.lArmH - p.handR*0.7, false);
-dbLeft.rotation.z = Math.PI/2;
-
-// ── Barbell ──────────────────────────────────────────────────────────────────
-var barbellG = new THREE.Group();
-barbellG.visible = false;
-scene.add(barbellG);
-
-var bbBar = mesh(new THREE.CylinderGeometry(0.022,0.022,1.55,8), metalMat);
-bbBar.rotation.z = Math.PI/2; barbellG.add(bbBar);
-
-[-0.62,-0.48,0.48,0.62].forEach(function(x){
-  var pl = mesh(new THREE.CylinderGeometry(0.135,0.135,0.046,18), plateMat2);
-  pl.rotation.z = Math.PI/2; pl.position.x = x; barbellG.add(pl);
-  var rng = mesh(new THREE.TorusGeometry(0.100,0.009,7,24), accMat);
-  rng.rotation.y = Math.PI/2; rng.position.x = x; barbellG.add(rng);
-});
-
-// ── Animation System ─────────────────────────────────────────────────────────
-var cur = {lSZ:0,rSZ:0,lSX:0,rSX:0,lEX:0,rEX:0,spX:0,lKX:0,rKX:0};
-var tgt = {lSZ:0,rSZ:0,lSX:0,rSX:0,lEX:0,rEX:0,spX:0,lKX:0,rKX:0};
-var ANIM_TAG = document.getElementById('anim-tag');
-
-function idle(){
-  tgt.lSZ=0.18; tgt.rSZ=-0.18; tgt.lSX=0; tgt.rSX=0;
-  tgt.lEX=-0.22; tgt.rEX=-0.22; tgt.spX=0; tgt.lKX=0; tgt.rKX=0;
-  dbLeft.visible=false; dbRight.visible=false; barbellG.visible=false;
-  if(ANIM_TAG) ANIM_TAG.textContent='READY TO LIFT';
-}
-
-var ANIMS=[
-  {label:'BICEP CURL', dur:4.0,
-   setup:function(){
-     tgt.lKX=0;tgt.rKX=0;tgt.spX=0;tgt.lSX=0;tgt.rSX=0;
-     tgt.lSZ=0.18;tgt.rSZ=-0.18;
-     dbLeft.visible=true;dbRight.visible=true;barbellG.visible=false;
-   },
-   tick:function(t){
-     var c=(t%1.5)/1.5;
-     if(c<0.5){tgt.rEX=-(Math.PI/2+0.15)*Math.min(1,c*5);tgt.lEX=-(0.22);}
-     else{tgt.rEX=-(Math.PI/2+0.15)*Math.max(0,1-(c-0.5)*5);tgt.lEX=-(Math.PI/2+0.15)*Math.min(1,(c-0.5)*5);}
-   }
-  },
-  {label:'OVERHEAD PRESS', dur:4.5,
-   setup:function(){
-     tgt.lKX=0;tgt.rKX=0;tgt.lEX=-0.25;tgt.rEX=-0.25;
-     dbLeft.visible=false;dbRight.visible=false;barbellG.visible=true;
-   },
-   tick:function(t){
-     var press=(Math.sin(t*1.4)*0.5+0.5);
-     tgt.lSZ=lerp(0.2,-Math.PI*0.53,press);
-     tgt.rSZ=lerp(-0.2,Math.PI*0.53,press);
-     tgt.lSX=0; tgt.rSX=0;
-     tgt.spX=lerp(0,-0.10,press);
-     // barbell follows hands
-     var handY = hipsY + torsoTopY + shldrY + lerp(-p.uArmH*0.5,p.uArmH*0.5,press);
-     barbellG.position.set(0, handY + lerp(0, p.uArmH, press), lerp(0.3,-0.05,press));
-   }
-  },
-  {label:'SQUATTING', dur:4.5,
-   setup:function(){
-     tgt.lSZ=0;tgt.rSZ=0;tgt.lSX=-0.20;tgt.rSX=-0.20;
-     tgt.lEX=-0.25;tgt.rEX=-0.25;
-     dbLeft.visible=false;dbRight.visible=false;barbellG.visible=true;
-   },
-   tick:function(t){
-     var d=Math.sin(t*1.1)*0.5+0.5;
-     tgt.lKX=d*1.65;tgt.rKX=d*1.65;tgt.spX=d*0.38;
-     // barbell on traps
-     barbellG.position.set(0, hipsY+torsoTopY+shldrY*0.9, -0.15);
-   }
-  },
-  {label:'DEADLIFTING', dur:5.0,
-   setup:function(){
-     tgt.lSZ=0.05;tgt.rSZ=-0.05;tgt.lSX=0;tgt.rSX=0;
-     tgt.lEX=0;tgt.rEX=0;
-     dbLeft.visible=false;dbRight.visible=false;barbellG.visible=true;
-   },
-   tick:function(t){
-     var pull=Math.sin(t*1.0)*0.5+0.5;
-     tgt.spX=lerp(0.90,0,pull);
-     tgt.lKX=lerp(0.55,0,pull);tgt.rKX=lerp(0.55,0,pull);
-     tgt.lSX=lerp(0.45,0,pull);tgt.rSX=lerp(0.45,0,pull);
-     // barbell near floor
-     var barH = lerp(0.20, hipsY*0.55, pull);
-     barbellG.position.set(0, barH, 0.1);
-     barbellG.rotation.x = lerp(0.1, 0, pull);
-   }
-  },
-  {label:'LATERAL RAISE', dur:3.8,
-   setup:function(){
-     tgt.lSX=0;tgt.rSX=0;tgt.spX=0;tgt.lKX=0;tgt.rKX=0;
-     tgt.lEX=-0.08;tgt.rEX=-0.08;
-     dbLeft.visible=true;dbRight.visible=true;barbellG.visible=false;
-   },
-   tick:function(t){
-     var r=Math.sin(t*1.3)*0.5+0.5;
-     tgt.lSZ=lerp(0.18,-Math.PI*0.46,r);
-     tgt.rSZ=lerp(-0.18,Math.PI*0.46,r);
-   }
-  },
-  {label:'VICTORY FLEX', dur:3.5,
-   setup:function(){
-     tgt.spX=0;tgt.lKX=0;tgt.rKX=0;tgt.lSX=0;tgt.rSX=0;
-     dbLeft.visible=false;dbRight.visible=false;barbellG.visible=false;
-   },
-   tick:function(t){
-     var pump=Math.sin(t*3.5)*0.5+0.5;
-     tgt.lSZ=lerp(0.68,0.85,pump);
-     tgt.rSZ=lerp(-0.68,-0.85,pump);
-     tgt.lEX=lerp(-Math.PI*0.50,-Math.PI*0.58,pump);
-     tgt.rEX=lerp(-Math.PI*0.50,-Math.PI*0.58,pump);
-   }
-  },
+var M=${m}, LVL=${lvl};
+var cv=document.getElementById('c');
+var cx=cv.getContext('2d');
+var W=window.innerWidth, H=window.innerHeight;
+cv.width=W; cv.height=H;
+
+// ── character scale from muscle ──────────────────────────────────────────────
+var BASE = Math.min(W,H)*0.38;
+var SCALE = 1 + M*0.45;  // body gets bigger with muscle
+
+// ── body proportions (in "character units", scaled) ─────────────────────────
+// All sizes relative to BASE
+var U = BASE * SCALE;
+
+// limb thickness grows with muscle
+var tTorso  = (0.22 + M*0.12) * U;
+var tUpperA = (0.10 + M*0.07) * U;
+var tForeA  = (0.08 + M*0.05) * U;
+var tThigh  = (0.13 + M*0.09) * U;
+var tShin   = (0.09 + M*0.06) * U;
+var lTorso  = 0.38 * U;
+var lUpperA = 0.26 * U;
+var lForeA  = 0.22 * U;
+var lThigh  = 0.30 * U;
+var lShin   = 0.28 * U;
+var headR   = (0.13 + M*0.03) * U;
+
+// ── animation poses ──────────────────────────────────────────────────────────
+// Each pose: target angles (radians) for each joint
+// joints: [lShoulder, lElbow, rShoulder, rElbow, lHip, lKnee, rHip, rKnee, spine]
+// positive = forward/down rotation
+
+var POSES = [
+  { name:'IDLE',           j:[0.15,-0.2, -0.15,0.2, 0.05,0.1, -0.05,0.1, 0.0],   speed:0.9 },
+  { name:'BICEP CURL',     j:[-1.1,2.2,  0.2,-0.3, 0.05,0.1, -0.05,0.1, 0.0],    speed:1.3 },
+  { name:'OVERHEAD PRESS', j:[-1.5,0.3, -1.5,0.3,  0.05,0.1, -0.05,0.1, -0.05],  speed:1.1 },
+  { name:'SQUAT',          j:[0.4,-0.3,  -0.4,0.3, 0.85,1.6,  0.85,1.6, 0.15],   speed:0.8 },
+  { name:'DEADLIFT',       j:[0.5,-0.2, -0.5,0.2,  0.3,0.5,   0.3,0.5,  0.3],    speed:0.7 },
+  { name:'LAT RAISE',      j:[-1.3,0.1, 1.3,-0.1,  0.05,0.1, -0.05,0.1, 0.0],    speed:1.2 },
 ];
 
-var animIdx=0, animT=0, curAnim=null;
-idle();
+var poseIdx = 0;
+var poseFade = 0;  // 0-1, how far we are into a new pose
+var FADE_SPEED = 0.012;
+var poseTimer = 0;
+var POSE_HOLD = 220; // frames per pose
 
-function nextAnim(){
-  var a=ANIMS[animIdx%ANIMS.length]; animIdx++;
-  a.setup(); animT=0; curAnim=a;
-  if(ANIM_TAG) ANIM_TAG.textContent=a.label;
+// current joint angles (lerp targets)
+var cur  = POSES[0].j.slice();
+var prev = POSES[0].j.slice();
+var next = POSES[0].j.slice();
+
+function advancePose() {
+  prev = cur.slice();
+  poseIdx = (poseIdx + 1) % POSES.length;
+  next = POSES[poseIdx].j.slice();
+  poseFade = 0;
+  poseTimer = 0;
+  document.getElementById('label').textContent = POSES[poseIdx].name;
 }
-nextAnim();
 
-// Tap skips animation
-document.addEventListener('touchstart',function(){animT=curAnim?curAnim.dur:0;});
-document.addEventListener('click',function(){animT=curAnim?curAnim.dur:0;});
+document.body.addEventListener('click', advancePose);
 
-// Receive updates from React Native
-function onMsg(e){
-  try{
-    var d=JSON.parse(typeof e.data==='string'?e.data:e.data);
-    if(d.type==='next') nextAnim();
-  }catch(err){}
+// ── draw helpers ─────────────────────────────────────────────────────────────
+
+function capsule(cx2, x1,y1, x2,y2, r, col, glow) {
+  var dx=x2-x1, dy=y2-y1;
+  var len=Math.sqrt(dx*dx+dy*dy)||1;
+  var nx=-dy/len, ny=dx/len;
+  if(glow){
+    cx2.shadowColor=col;
+    cx2.shadowBlur=18*glow;
+  } else {
+    cx2.shadowBlur=0;
+  }
+  cx2.beginPath();
+  cx2.moveTo(x1+nx*r, y1+ny*r);
+  cx2.lineTo(x2+nx*r, y2+ny*r);
+  cx2.arc(x2,y2,r, Math.atan2(ny,nx), Math.atan2(ny,nx)+Math.PI);
+  cx2.lineTo(x1-nx*r, y1-ny*r);
+  cx2.arc(x1,y1,r, Math.atan2(-ny,-nx), Math.atan2(-ny,-nx)+Math.PI);
+  cx2.closePath();
+  cx2.fillStyle=col;
+  cx2.fill();
+  cx2.shadowBlur=0;
 }
-document.addEventListener('message',onMsg);
-window.addEventListener('message',onMsg);
 
-// ── Render loop ──────────────────────────────────────────────────────────────
-var GT=0;
-function animate(){
-  requestAnimationFrame(animate);
-  GT+=0.016; animT+=0.016;
-
-  // Advance anim
-  if(curAnim && animT>=curAnim.dur){ nextAnim(); }
-  if(curAnim && curAnim.tick) curAnim.tick(animT);
-
-  // Lerp joints (smooth)
-  var LS=0.14;
-  for(var k in cur) cur[k]+=(tgt[k]-cur[k])*LS*3;
-
-  // Apply joints
-  LA.sp2.rotation.z = cur.lSZ;
-  RA.sp2.rotation.z = cur.rSZ;
-  LA.sp2.rotation.x = cur.lSX;
-  RA.sp2.rotation.x = cur.rSX;
-  LA.fp.rotation.x  = cur.lEX;
-  RA.fp.rotation.x  = cur.rEX;
-  spine.rotation.x  = cur.spX;
-  LL.kneePivot.rotation.x = cur.lKX;
-  RL.kneePivot.rotation.x = cur.rKX;
-
-  // Idle breathing
-  var breath = Math.sin(GT*1.05)*0.013;
-  root.scale.y = 1+breath;
-
-  // Gentle sway
-  root.rotation.y = Math.sin(GT*0.28)*0.18;
-
-  // Subtle float
-  root.position.y = 0.045+Math.sin(GT*0.72)*0.018;
-
-  // Head slight tracking (nod with exertion)
-  var exertion = (Math.abs(cur.lEX)+Math.abs(cur.rEX))/2;
-  headG.rotation.x = -exertion*0.08;
-
-  // Dynamic lights
-  keyLight.intensity = 10+Math.sin(GT*1.3)*1.5;
-  rimLight.position.x = Math.sin(GT*0.38)*2.2;
-  fillLight.intensity = 2.5+Math.sin(GT*0.9)*0.4;
-
-  // Rings spin
-  rings.forEach(function(r,i){
-    r.rotation.z = GT*(0.28+i*0.14)*(i%2===0?1:-1);
-    r.material.emissiveIntensity=0.35+Math.sin(GT*2.2+i)*0.18;
-  });
-
-  // Dust particles
-  dustPts.forEach(function(dp){
-    dp.position.y+=dp.userData.vy;
-    dp.position.x+=Math.sin(GT*0.4+dp.userData.ph)*0.003;
-    dp.material.opacity=0.15+Math.sin(GT*1.8+dp.userData.ph)*0.18;
-    if(dp.position.y>6) dp.position.y=-0.5;
-  });
-
-  // Ceiling spots sweep slowly
-  ceilSpots.forEach(function(s,i){
-    s.target.position.x=Math.sin(GT*0.22+i*2.1)*1.5;
-  });
-
-  renderer.render(scene,camera);
+function circle(cx2,x,y,r,col,glow){
+  if(glow){cx2.shadowColor=col;cx2.shadowBlur=22*glow;}else{cx2.shadowBlur=0;}
+  cx2.beginPath();
+  cx2.arc(x,y,r,0,Math.PI*2);
+  cx2.fillStyle=col;
+  cx2.fill();
+  cx2.shadowBlur=0;
 }
-animate();
 
-window.addEventListener('resize',function(){
-  var w=window.innerWidth,h=window.innerHeight;
-  camera.aspect=w/h; camera.updateProjectionMatrix();
-  renderer.setSize(w,h);
-});
+// ── color palette ─────────────────────────────────────────────────────────────
+var COL = {
+  skin:   '#c8845a',
+  skinD:  '#a0623a',
+  shirt:  '#1a1a2e',
+  pants:  '#111122',
+  shoe:   '#222233',
+  orange: '#ff7a00',
+  eye:    M>0.6 ? '#ff6600' : '#ffffff',
+  joint:  '#c87040',
+};
+
+// ── dumbbell ─────────────────────────────────────────────────────────────────
+function drawDumbbell(cx2, x, y, angle, showDB) {
+  if(!showDB) return;
+  cx2.save();
+  cx2.translate(x,y);
+  cx2.rotate(angle);
+  var bw=tForeA*0.55, bl=tForeA*1.4;
+  // handle
+  cx2.fillStyle='#888';
+  cx2.shadowBlur=0;
+  cx2.fillRect(-bl*0.5,-bw*0.18,bl,bw*0.36);
+  // plates
+  cx2.fillStyle='#555';
+  cx2.beginPath(); cx2.arc(-bl*0.5,0,bw*0.5,0,Math.PI*2); cx2.fill();
+  cx2.beginPath(); cx2.arc( bl*0.5,0,bw*0.5,0,Math.PI*2); cx2.fill();
+  cx2.restore();
+}
+
+// ── barbell (for deadlift / squat) ───────────────────────────────────────────
+function drawBarbell(cx2, x, y, len) {
+  cx2.fillStyle='#666';
+  cx2.fillRect(x-len/2, y-4, len, 8);
+  cx2.fillStyle='#444';
+  cx2.beginPath(); cx2.arc(x-len/2,y,14,0,Math.PI*2); cx2.fill();
+  cx2.beginPath(); cx2.arc(x+len/2,y,14,0,Math.PI*2); cx2.fill();
+}
+
+// ── background ───────────────────────────────────────────────────────────────
+function drawBG(t) {
+  // dark gradient
+  var bg=cx.createRadialGradient(W/2,H*0.4,0, W/2,H*0.4,H*0.65);
+  bg.addColorStop(0,'#110020');
+  bg.addColorStop(1,'#050008');
+  cx.fillStyle=bg;
+  cx.fillRect(0,0,W,H);
+
+  // grid floor
+  cx.strokeStyle='rgba(255,100,0,0.08)';
+  cx.lineWidth=1;
+  var gy=H*0.82, gw=W*0.9, gstep=W*0.07;
+  for(var gx=-gw;gx<gw*2;gx+=gstep){
+    cx.beginPath(); cx.moveTo(W/2+gx,gy); cx.lineTo(W/2+gx+gw,H+20); cx.stroke();
+    cx.beginPath(); cx.moveTo(W/2+gx,gy); cx.lineTo(W/2+gx-gw,H+20); cx.stroke();
+  }
+
+  // platform glow
+  cx.shadowColor='#ff7a00';
+  cx.shadowBlur=40;
+  cx.fillStyle='rgba(255,122,0,0.12)';
+  cx.beginPath();
+  cx.ellipse(W/2,H*0.81, U*0.55, U*0.09, 0, 0, Math.PI*2);
+  cx.fill();
+  cx.shadowBlur=0;
+
+  // subtle pulse ring
+  var pr = (0.5+0.5*Math.sin(t*0.04))*U*0.6;
+  cx.strokeStyle='rgba(255,100,0,'+(0.06+0.04*Math.sin(t*0.04))+')';
+  cx.lineWidth=2;
+  cx.beginPath();
+  cx.ellipse(W/2,H*0.81, pr, pr*0.16, 0, 0, Math.PI*2);
+  cx.stroke();
+}
+
+// ── main character draw ───────────────────────────────────────────────────────
+function drawCharacter(j, t) {
+  var lShoulder=j[0], lElbow=j[1];
+  var rShoulder=j[2], rElbow=j[3];
+  var lHip=j[4], lKnee=j[5];
+  var rHip=j[6], rKnee=j[7];
+  var spine=j[8];
+
+  // add breathing oscillation on top
+  var breath = Math.sin(t*0.04)*0.02;
+  lShoulder += breath; rShoulder -= breath;
+
+  // ── root position ─────────────────────────────────────────────
+  var groundY = H*0.80;
+  var rootX = W/2;
+
+  // spine lean
+  var spineAngle = spine;
+
+  // ── legs ────────────────────────────────────────────────────
+  // left thigh
+  var lHipX=rootX - tTorso*0.35;
+  var lHipY=groundY - lThigh - lShin;
+  var lKneeX=lHipX + Math.sin(lHip)*lThigh;
+  var lKneeY=lHipY + Math.cos(lHip)*lThigh;
+  var lFootX=lKneeX + Math.sin(lHip+lKnee)*lShin;
+  var lFootY=lKneeY + Math.cos(lHip+lKnee)*lShin;
+
+  // right thigh
+  var rHipX=rootX + tTorso*0.35;
+  var rHipY=lHipY;
+  var rKneeX=rHipX - Math.sin(rHip)*rThigh;
+  var rKneeY=rHipY + Math.cos(rHip)*lThigh;
+  var rFootX=rKneeX - Math.sin(rHip+rKnee)*lShin;
+  var rFootY=rKneeY + Math.cos(rHip+rKnee)*lShin;
+
+  // draw back leg first
+  capsule(cx,rHipX,rHipY, rKneeX,rKneeY, tThigh*0.48, '#0d0d1f');
+  capsule(cx,rKneeX,rKneeY, rFootX,rFootY, tShin*0.46, '#0d0d1f');
+  // shoe back
+  capsule(cx,rFootX,rFootY, rFootX+tShin*0.9,rFootY+tShin*0.12, tShin*0.46, '#161628');
+
+  // torso
+  var torsoTopX=rootX + Math.sin(spineAngle)*lTorso*0.5;
+  var torsoTopY=lHipY - lTorso;
+  var torsoBotX=rootX - Math.sin(spineAngle)*lTorso*0.5;
+  var torsoBotY=lHipY;
+
+  // shoulders (wider with muscle)
+  var shoulderW = tTorso*(0.75+M*0.3);
+  var lShoulderX=torsoTopX - shoulderW;
+  var lShoulderY=torsoTopY + lTorso*0.05;
+  var rShoulderX=torsoTopX + shoulderW;
+  var rShoulderY=lShoulderY;
+
+  // ── back arms ─────────────────────────────────────────────────
+  var lElbowX=lShoulderX + Math.sin(lShoulder-0.2)*lUpperA;
+  var lElbowY=lShoulderY + Math.cos(lShoulder-0.2)*lUpperA;
+  var lHandX=lElbowX + Math.sin(lShoulder+lElbow-0.2)*lForeA;
+  var lHandY=lElbowY + Math.cos(lShoulder+lElbow-0.2)*lForeA;
+
+  capsule(cx,lShoulderX,lShoulderY, lElbowX,lElbowY, tUpperA*0.46, '#1a1a3a');
+  capsule(cx,lElbowX,lElbowY, lHandX,lHandY, tForeA*0.44, '#1a1a3a');
+
+  // ── torso ────────────────────────────────────────────────────
+  capsule(cx,torsoBotX,torsoBotY, torsoTopX,torsoTopY, tTorso*0.5, COL.shirt, 0);
+
+  // chest highlight
+  var chestY=torsoTopY+lTorso*0.25;
+  cx.save();
+  cx.globalAlpha=0.13+M*0.1;
+  cx.fillStyle=COL.orange;
+  cx.shadowColor=COL.orange; cx.shadowBlur=12;
+  cx.beginPath();
+  cx.ellipse(torsoTopX,chestY, tTorso*0.32, lTorso*0.14, 0, 0, Math.PI*2);
+  cx.fill();
+  cx.restore();
+
+  // ── front legs ────────────────────────────────────────────────
+  capsule(cx,lHipX,lHipY, lKneeX,lKneeY, tThigh*0.5, COL.pants);
+  capsule(cx,lKneeX,lKneeY, lFootX,lFootY, tShin*0.48, COL.pants);
+  capsule(cx,lFootX,lFootY, lFootX-tShin*0.9,lFootY+tShin*0.12, tShin*0.48, COL.shoe);
+  capsule(cx,rHipX,rHipY, rKneeX,rKneeY, tThigh*0.48, COL.pants);
+  capsule(cx,rKneeX,rKneeY, rFootX,rFootY, tShin*0.46, COL.pants);
+  capsule(cx,rFootX,rFootY, rFootX+tShin*0.9,rFootY+tShin*0.12, tShin*0.46, COL.shoe);
+
+  // ── front arms ────────────────────────────────────────────────
+  var rElbowX=rShoulderX + Math.sin(rShoulder+0.2)*lUpperA;
+  var rElbowY=rShoulderY + Math.cos(rShoulder+0.2)*lUpperA;
+  var rHandX=rElbowX + Math.sin(rShoulder+rElbow+0.2)*lForeA;
+  var rHandY=rElbowY + Math.cos(rShoulder+rElbow+0.2)*lForeA;
+
+  capsule(cx,rShoulderX,rShoulderY, rElbowX,rElbowY, tUpperA*0.48, COL.skin);
+  capsule(cx,rElbowX,rElbowY, rHandX,rHandY, tForeA*0.46, COL.skin);
+  capsule(cx,lShoulderX,lShoulderY, lElbowX,lElbowY, tUpperA*0.48, COL.skin);
+  capsule(cx,lElbowX,lElbowY, lHandX,lHandY, tForeA*0.46, COL.skin);
+
+  // ── joint dots ────────────────────────────────────────────────
+  var jcol=COL.joint;
+  circle(cx,lShoulderX,lShoulderY,tUpperA*0.38,jcol,0);
+  circle(cx,rShoulderX,rShoulderY,tUpperA*0.38,jcol,0);
+  circle(cx,lElbowX,lElbowY,tForeA*0.38,jcol,0);
+  circle(cx,rElbowX,rElbowY,tForeA*0.38,jcol,0);
+  circle(cx,lKneeX,lKneeY,tShin*0.42,jcol,0);
+  circle(cx,rKneeX,rKneeY,tShin*0.42,jcol,0);
+
+  // ── head ─────────────────────────────────────────────────────
+  var neckX=torsoTopX, neckY=torsoTopY-headR*0.3;
+  var headX=neckX, headY=neckY-headR;
+  capsule(cx,torsoTopX,torsoTopY,neckX,neckY,tTorso*0.22,COL.skin,0);
+  circle(cx,headX,headY,headR,COL.skin,0);
+
+  // eyes
+  var eyeOff=headR*0.3;
+  var eyeR=headR*0.15;
+  var eyeY=headY-headR*0.05;
+  circle(cx,headX-eyeOff,eyeY,eyeR,'#fff',0);
+  circle(cx,headX+eyeOff,eyeY,eyeR,'#fff',0);
+  // pupils
+  var pupR=eyeR*0.55;
+  circle(cx,headX-eyeOff+pupR*0.3,eyeY+pupR*0.2,pupR,M>0.6?COL.orange:'#222',M>0.6?1:0);
+  circle(cx,headX+eyeOff+pupR*0.3,eyeY+pupR*0.2,pupR,M>0.6?COL.orange:'#222',M>0.6?1:0);
+
+  // mouth — smile
+  cx.strokeStyle=COL.skinD;
+  cx.lineWidth=headR*0.1;
+  cx.beginPath();
+  cx.arc(headX,headY+headR*0.25, headR*0.3, 0.2, Math.PI-0.2);
+  cx.stroke();
+
+  // hair / top
+  cx.fillStyle='#1a0a00';
+  cx.beginPath();
+  cx.arc(headX,headY-headR*0.1, headR*0.85, Math.PI, 0);
+  cx.fill();
+
+  // ── equipment ────────────────────────────────────────────────
+  var pose=POSES[poseIdx].name;
+  var showDB = pose==='BICEP CURL' || pose==='LAT RAISE' || pose==='OVERHEAD PRESS';
+  var showBB = pose==='DEADLIFT' || pose==='SQUAT';
+
+  if(showDB){
+    var dbAngleL=Math.atan2(lHandY-lElbowY, lHandX-lElbowX);
+    var dbAngleR=Math.atan2(rHandY-rElbowY, rHandX-rElbowX);
+    drawDumbbell(cx, lHandX,lHandY, dbAngleL, true);
+    drawDumbbell(cx, rHandX,rHandY, dbAngleR, true);
+  }
+  if(showBB){
+    var bbY = pose==='DEADLIFT' ? groundY : groundY;
+    var bbX = rootX;
+    if(pose==='DEADLIFT') drawBarbell(cx, bbX, groundY-tShin*0.3, U*0.9);
+    if(pose==='SQUAT'){
+      // barbell on back
+      var bbBX=torsoTopX, bbBY=torsoTopY+lTorso*0.1;
+      drawBarbell(cx, bbBX, bbBY, U*0.85);
+    }
+  }
+
+  // shadow on floor
+  cx.save();
+  cx.globalAlpha=0.25;
+  var shG=cx.createRadialGradient(rootX,groundY,0, rootX,groundY,U*0.35);
+  shG.addColorStop(0,'rgba(0,0,0,0.7)');
+  shG.addColorStop(1,'rgba(0,0,0,0)');
+  cx.fillStyle=shG;
+  cx.beginPath();
+  cx.ellipse(rootX,groundY, U*0.35, U*0.06, 0, 0, Math.PI*2);
+  cx.fill();
+  cx.restore();
+}
+
+// ── animation loop ────────────────────────────────────────────────────────────
+var rThigh = lThigh; // mirror
+
+var t=0;
+function frame(){
+  requestAnimationFrame(frame);
+  t++;
+
+  // advance pose timer
+  poseTimer++;
+  if(poseTimer>POSE_HOLD) advancePose();
+
+  // ease pose fade 0→1
+  if(poseFade<1) poseFade=Math.min(1,poseFade+FADE_SPEED);
+
+  // interpolate joints
+  var pose=POSES[poseIdx];
+  var osc=Math.sin(t*0.055)*0.06; // living oscillation
+
+  for(var i=0;i<cur.length;i++){
+    var target=prev[i]+(next[i]-prev[i])*poseFade;
+    // add oscillation on relevant joints
+    if(i===0||i===2) target+=osc; // shoulders breathe
+    if(i===1||i===3) target+=Math.sin(t*0.08+i)*0.04; // elbows micro-jitter
+    cur[i]+=(target-cur[i])*0.07; // smooth lerp
+  }
+
+  cx.clearRect(0,0,W,H);
+  drawBG(t);
+  drawCharacter(cur, t);
+}
+
+document.getElementById('label').textContent=POSES[0].name;
+frame();
 </script>
 </body>
 </html>`;

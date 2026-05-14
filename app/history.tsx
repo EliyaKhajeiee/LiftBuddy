@@ -151,6 +151,34 @@ export default function HistoryScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Delete all this month */}
+        {logs.length > 0 && (
+          <TouchableOpacity
+            style={s.deleteMonthBtn}
+            activeOpacity={0.8}
+            onPress={() => Alert.alert(
+              `Delete ${MONTHS[month]}?`,
+              `This will permanently delete all ${logs.length} workout${logs.length !== 1 ? 's' : ''} logged in ${MONTHS[month]} ${year}.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete All', style: 'destructive', onPress: async () => {
+                  if (!user?.uid) return;
+                  setLoading(true);
+                  try {
+                    await Promise.all(logs.map(log => deleteDoc(doc(db, 'users', user.uid, 'logs', log.logId))));
+                    setLogs([]);
+                    setSelected(null);
+                  } catch { Alert.alert('Error', 'Could not delete. Try again.'); }
+                  finally { setLoading(false); }
+                }},
+              ]
+            )}
+          >
+            <Ionicons name="trash-outline" size={14} color={colors.accent.danger} />
+            <Text style={s.deleteMonthText}>Delete all {MONTHS[month]}</Text>
+          </TouchableOpacity>
+        )}
+
         {/* DOW labels */}
         <View style={s.dowRow}>
           {DAYS.map(d => <Text key={d} style={s.dowLabel}>{d}</Text>)}
@@ -401,10 +429,12 @@ const s = StyleSheet.create({
   title:     { ...typography.h4 },
   scroll:    { padding: spacing.md, paddingBottom: 60 },
 
-  monthRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
-  monthLabel: { fontSize: 18, fontWeight: '700', color: colors.text.primary },
-  navBtn:     { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm, backgroundColor: colors.bg.elevated },
-  navBtnOff:  { opacity: 0.3 },
+  monthRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
+  monthLabel:     { fontSize: 18, fontWeight: '700', color: colors.text.primary },
+  navBtn:         { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm, backgroundColor: colors.bg.elevated },
+  navBtnOff:      { opacity: 0.3 },
+  deleteMonthBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, marginBottom: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: `${colors.accent.danger}30`, backgroundColor: `${colors.accent.danger}08` },
+  deleteMonthText:{ fontSize: 13, fontWeight: '600', color: colors.accent.danger },
 
   dowRow:   { flexDirection: 'row', marginBottom: 4 },
   dowLabel: { flex: 1, textAlign: 'center', fontSize: 10, fontWeight: '700', color: colors.text.muted, letterSpacing: 0.5 },

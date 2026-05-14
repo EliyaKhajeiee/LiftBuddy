@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity, TextInput,
-  StyleSheet, Alert, Modal, FlatList,
+  StyleSheet, Alert, Modal, FlatList, Animated, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -297,6 +297,70 @@ const sm = StyleSheet.create({
   exMeta:      { fontSize: 12, color: colors.text.muted, marginTop: 2, textTransform: 'capitalize' },
 });
 
+// ── Rest Timer Modal ──────────────────────────────────────────────────────────
+
+function RestTimerModal({ visible, remaining, total, onSkip }: {
+  visible: boolean; remaining: number; total: number; onSkip: () => void;
+}) {
+  const fillAnim = useRef(new Animated.Value(1)).current;
+  const isUrgent = remaining <= 10;
+
+  useEffect(() => {
+    const pct = total > 0 ? remaining / total : 0;
+    Animated.timing(fillAnim, {
+      toValue: pct, duration: 950, useNativeDriver: false, easing: Easing.linear,
+    }).start();
+  }, [remaining]);
+
+  function fmt(s: number) {
+    return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      <View style={rm.backdrop}>
+        <View style={rm.card}>
+          <View style={rm.loggedBadge}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.accent.success} />
+            <Text style={rm.loggedText}>Set logged</Text>
+          </View>
+
+          <Text style={rm.restLabel}>REST</Text>
+          <Text style={[rm.countdown, isUrgent && rm.urgent]}>{fmt(remaining)}</Text>
+
+          <View style={rm.barBg}>
+            <Animated.View style={[
+              rm.barFill,
+              { width: fillAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+              isUrgent && rm.barUrgent,
+            ]} />
+          </View>
+
+          <TouchableOpacity style={rm.skipBtn} onPress={onSkip} activeOpacity={0.8}>
+            <Text style={rm.skipText}>Skip Rest</Text>
+            <Ionicons name="arrow-forward" size={15} color={colors.accent.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const rm = StyleSheet.create({
+  backdrop:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
+  card:       { width: '100%', backgroundColor: colors.bg.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center', gap: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  loggedBadge:{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: `${colors.accent.success}18`, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  loggedText: { fontSize: 13, fontWeight: '700', color: colors.accent.success },
+  restLabel:  { fontSize: 11, fontWeight: '800', letterSpacing: 3, color: colors.text.muted },
+  countdown:  { fontSize: 72, fontWeight: '800', color: colors.text.primary, letterSpacing: -2, fontVariant: ['tabular-nums'] },
+  urgent:     { color: colors.accent.danger },
+  barBg:      { width: '80%', height: 4, backgroundColor: colors.bg.elevated, borderRadius: 2, overflow: 'hidden' },
+  barFill:    { height: 4, backgroundColor: colors.accent.primary, borderRadius: 2 },
+  barUrgent:  { backgroundColor: colors.accent.danger },
+  skipBtn:    { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: `${colors.accent.primary}50`, borderRadius: radius.full, paddingHorizontal: spacing.lg, paddingVertical: 12 },
+  skipText:   { fontSize: 15, fontWeight: '700', color: colors.accent.primary },
+});
+
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export default function WorkoutSession() {
@@ -306,6 +370,7 @@ export default function WorkoutSession() {
     dayName, exercises, elapsed, status,
     finishSession, clearSession,
     swapExercise, addSet, removeSet, removeExercise,
+    restActive, restRemaining, restTotal, skipRest,
   } = useWorkoutStore();
 
   const [swapTarget, setSwapTarget] = useState<number | null>(null);
@@ -406,6 +471,14 @@ export default function WorkoutSession() {
           onClose={() => setSwapTarget(null)}
         />
       )}
+
+      {/* Rest timer modal */}
+      <RestTimerModal
+        visible={restActive}
+        remaining={restRemaining}
+        total={restTotal}
+        onSkip={skipRest}
+      />
     </SafeAreaView>
   );
 }

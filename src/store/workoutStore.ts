@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { doc, setDoc, increment, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, increment, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { EXERCISE_MAP } from '../data/exercises';
 import type { WorkoutPlan, ExercisePlan, LastSession, MuscleGroup } from '../types';
@@ -316,19 +316,17 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       summary: { totalVolume, duration },
     });
 
-    await setDoc(doc(db, 'users', uid), {
-      lastSessions: {
-        [dayKey]: {
-          date: Timestamp.fromDate(endTime),
-          exercises: exerciseLog.map(ex => ({
-            exerciseId: ex.exerciseId,
-            sets: ex.sets.map(s => ({ weight: s.weight, reps: s.reps, completed: s.completed })),
-          })),
-        },
+    await updateDoc(doc(db, 'users', uid), {
+      [`lastSessions.${dayKey}`]: {
+        date: Timestamp.fromDate(endTime),
+        exercises: exerciseLog.map(ex => ({
+          exerciseId: ex.exerciseId,
+          sets: ex.sets.map(s => ({ weight: s.weight, reps: s.reps, completed: s.completed })),
+        })),
       },
       'stats.totalWorkouts': increment(1),
       'stats.lastWorkoutDate': Timestamp.fromDate(endTime),
-    }, { merge: true });
+    });
 
     set({ status: 'idle', restActive: false, restRemaining: 0 });
   },

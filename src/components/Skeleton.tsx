@@ -21,10 +21,11 @@ export function Skeleton({ width, height, borderRadius = 8, style }: {
     return () => anim.stop();
   }, [opacity]);
 
+  const w = width ?? '100%';
   return (
     <Animated.View
       style={[
-        { width: width ?? '100%', height, borderRadius, backgroundColor: colors.bg.elevated, opacity },
+        { width: w as any, height, borderRadius, backgroundColor: colors.bg.elevated, opacity },
         style,
       ]}
     />

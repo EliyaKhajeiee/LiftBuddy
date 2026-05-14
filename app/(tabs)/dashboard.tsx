@@ -9,6 +9,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { useUserStore } from '../../src/store/userStore';
 import { getDayQuote } from '../../src/data/muscleQuotes';
 import { colors, spacing, radius } from '../../src/theme';
+import { Skeleton, SkeletonCard } from '../../src/components/Skeleton';
 import type { WeekDay } from '../../src/types';
 
 const DOW: WeekDay[] = ['sun','mon','tue','wed','thu','fri','sat'];
@@ -64,9 +65,40 @@ export default function DashboardScreen() {
   if (loading && !data) {
     return (
       <SafeAreaView style={s.root}>
-        <View style={s.center}>
-          <ActivityIndicator color={colors.accent.primary} />
+        <View style={s.nav}>
+          <Skeleton height={18} width={100} />
+          <Skeleton height={32} width={32} borderRadius={16} />
         </View>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+          <View style={{ gap: spacing.xs }}>
+            <Skeleton height={14} width={120} />
+            <Skeleton height={28} width={200} />
+            <Skeleton height={13} width={160} />
+          </View>
+          <SkeletonCard>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              {[0,1,2,3,4,5,6].map(i => (
+                <View key={i} style={{ alignItems: 'center', gap: 6 }}>
+                  <Skeleton height={10} width={16} />
+                  <Skeleton height={28} width={28} borderRadius={14} />
+                </View>
+              ))}
+            </View>
+          </SkeletonCard>
+          <SkeletonCard>
+            <Skeleton height={16} width="50%" />
+            <Skeleton height={12} width="70%" />
+            <Skeleton height={44} borderRadius={12} style={{ marginTop: 8 }} />
+          </SkeletonCard>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {[0,1,2].map(i => (
+              <SkeletonCard key={i} style={{ flex: 1 }}>
+                <Skeleton height={22} width="60%" />
+                <Skeleton height={11} width="80%" />
+              </SkeletonCard>
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }

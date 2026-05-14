@@ -14,6 +14,7 @@ import { db } from '../../src/firebase/config';
 import { useAuthStore } from '../../src/store/authStore';
 import { useUserStore } from '../../src/store/userStore';
 import { colors, spacing, radius, typography, shadows } from '../../src/theme';
+import { Skeleton, SkeletonCard } from '../../src/components/Skeleton';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -180,9 +181,11 @@ export default function ProgressScreen() {
         <View style={s.section}>
           <SectionLabel text="THIS WEEK'S CHECK-IN" />
           {checkinsLoading ? (
-            <View style={[s.card, s.center]}>
-              <ActivityIndicator color={colors.accent.primary} />
-            </View>
+            <SkeletonCard>
+              <Skeleton height={20} width="60%" />
+              <Skeleton height={14} width="40%" />
+              <Skeleton height={40} borderRadius={12} style={{ marginTop: 4 }} />
+            </SkeletonCard>
           ) : thisWeekCheckin ? (
             <TouchableOpacity
               style={s.card}
@@ -191,11 +194,8 @@ export default function ProgressScreen() {
             >
               <View style={s.thisWeekDone}>
                 <View style={s.thisWeekLeft}>
-                  <View style={s.doneIcon}>
-                    <Ionicons name="checkmark-circle" size={22} color={colors.accent.success} />
-                  </View>
                   <View style={s.doneText}>
-                    <Text style={s.doneTitle}>{weekRange} ✓</Text>
+                    <Text style={s.doneTitle}>{weekRange}</Text>
                     <Text style={s.doneSub}>
                       {[
                         thisWeekCheckin.weight ? `${thisWeekCheckin.weight} lbs` : null,
@@ -236,6 +236,12 @@ export default function ProgressScreen() {
         {/* ── Bodyweight ────────────────────────────────────────────────── */}
         <View style={s.section}>
           <SectionLabel text="BODYWEIGHT" />
+          {checkinsLoading ? (
+            <SkeletonCard>
+              <Skeleton height={36} width="35%" />
+              <Skeleton height={14} width="50%" />
+            </SkeletonCard>
+          ) : (
           <View style={s.card}>
             {currentWeight ? (
               <View style={s.weightDisplay}>
@@ -258,10 +264,27 @@ export default function ProgressScreen() {
               </View>
             )}
           </View>
+          )}
         </View>
 
         {/* ── Check-in History ─────────────────────────────────────────── */}
-        {pastCheckins.length > 0 && (
+        {checkinsLoading ? (
+          <View style={s.section}>
+            <SectionLabel text="PAST CHECK-INS" />
+            {[0, 1, 2].map(i => (
+              <SkeletonCard key={i}>
+                <Skeleton height={120} borderRadius={8} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ gap: 6 }}>
+                    <Skeleton height={14} width={90} />
+                    <Skeleton height={12} width={130} />
+                  </View>
+                  <Skeleton height={24} width={60} borderRadius={12} />
+                </View>
+              </SkeletonCard>
+            ))}
+          </View>
+        ) : pastCheckins.length > 0 && (
           <View style={s.section}>
             <View style={s.sectionHeader}>
               <SectionLabel text="PAST CHECK-INS" />

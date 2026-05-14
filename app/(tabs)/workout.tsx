@@ -13,6 +13,7 @@ import { useWorkoutStore } from '../../src/store/workoutStore';
 import { generatePlan }   from '../../src/utils/generatePlan';
 import { getDayQuote }    from '../../src/data/muscleQuotes';
 import { colors, spacing, radius, typography } from '../../src/theme';
+import { Skeleton, SkeletonCard } from '../../src/components/Skeleton';
 import { useState, useEffect } from 'react';
 import type { WeekDay, WorkoutDay, WorkoutPlan, ExercisePlan } from '../../src/types';
 
@@ -162,7 +163,7 @@ const ex = StyleSheet.create({
 export default function WorkoutScreen() {
   const router              = useRouter();
   const { user }            = useAuthStore();
-  const { data }            = useUserStore();
+  const { data, loading }   = useUserStore();
   const { status, startSession, startCustom } = useWorkoutStore();
   const [generating, setGenerating] = useState(false);
   const [showSwap,   setShowSwap]   = useState(false);
@@ -240,7 +241,23 @@ export default function WorkoutScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-        {plan ? (
+        {loading && !data ? (
+          <>
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
+              {[0,1,2,3,4,5,6].map(i => (
+                <SkeletonCard key={i} style={{ flex: 1, padding: 10, gap: 6 }}>
+                  <Skeleton height={10} width="100%" />
+                  <Skeleton height={28} width="100%" borderRadius={14} />
+                </SkeletonCard>
+              ))}
+            </View>
+            <SkeletonCard style={{ gap: 12 }}>
+              <Skeleton height={18} width="50%" />
+              <Skeleton height={13} width="70%" />
+              <Skeleton height={52} borderRadius={14} style={{ marginTop: 4 }} />
+            </SkeletonCard>
+          </>
+        ) : plan ? (
           <>
             {/* Week strip */}
             <WeekStrip

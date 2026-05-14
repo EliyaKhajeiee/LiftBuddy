@@ -16,6 +16,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { useUserStore } from '../../src/store/userStore';
 import { colors, spacing, radius, typography, shadows } from '../../src/theme';
 import { useRouter } from 'expo-router';
+import { Skeleton, SkeletonCard } from '../../src/components/Skeleton';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -297,13 +298,15 @@ const pm = StyleSheet.create({
 export default function FeedScreen() {
   const { user }            = useAuthStore();
   const { data: userData }  = useUserStore();
-  const [tab,    setTab]    = useState<'friends' | 'explore'>('friends');
-  const [search, setSearch] = useState('');
-  const [posts,  setPosts]  = useState<FeedPost[]>([]);
+  const [tab,     setTab]    = useState<'friends' | 'explore'>('friends');
+  const [search,  setSearch] = useState('');
+  const [posts,   setPosts]  = useState<FeedPost[]>([]);
+  const [loading, setLoading] = useState(true);
   const [postModalVisible, setPostModal] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) return;
+    setLoading(true);
 
     const q = tab === 'explore'
       ? query(collection(db, 'posts'), where('isPublic', '==', true), orderBy('createdAt', 'desc'), limit(30))
@@ -312,7 +315,8 @@ export default function FeedScreen() {
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ postId: d.id, ...d.data() } as FeedPost));
       setPosts(items);
-    }, () => {});
+      setLoading(false);
+    }, () => { setLoading(false); });
 
     return () => unsub();
   }, [tab, user?.uid]);
@@ -354,6 +358,26 @@ export default function FeedScreen() {
         <TabPill label="Explore"  active={tab === 'explore'}  onPress={() => setTab('explore')}  />
       </View>
 
+      {loading ? (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          {[0, 1, 2].map(i => (
+            <SkeletonCard key={i} style={{ marginBottom: spacing.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+                <Skeleton width={36} height={36} borderRadius={18} />
+                <View style={{ gap: 6, flex: 1 }}>
+                  <Skeleton height={13} width="40%" />
+                  <Skeleton height={11} width="25%" />
+                </View>
+              </View>
+              <Skeleton height={280} borderRadius={12} />
+              <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs }}>
+                <Skeleton height={20} width={50} borderRadius={10} />
+                <Skeleton height={20} width={50} borderRadius={10} />
+              </View>
+            </SkeletonCard>
+          ))}
+        </ScrollView>
+      ) : (
       <FlatList
         data={tab === 'explore' ? posts.filter(p => search === '' || p.authorName?.toLowerCase().includes(search.toLowerCase())) : myPosts}
         keyExtractor={p => p.postId}
@@ -404,6 +428,7 @@ export default function FeedScreen() {
         )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
       />
+      )}
 
       <PostModal
         visible={postModalVisible}

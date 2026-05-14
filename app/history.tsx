@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   collection, query, where, orderBy, getDocs,
-  deleteDoc, doc, getDoc, Timestamp,
+  deleteDoc, doc, Timestamp, limit,
 } from 'firebase/firestore';
 import { db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
@@ -69,9 +69,9 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Check-in photo for selected date
-  const [checkinPhoto,   setCheckinPhoto]   = useState<string | null>(null);
-  const [loadingCheckin, setLoadingCheckin] = useState(false);
+  // Post photo for selected date
+  const [postPhoto,   setPostPhoto]   = useState<string | null>(null);
+  const [loadingPost, setLoadingPost] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     if (!user?.uid) return;
@@ -91,16 +91,24 @@ export default function HistoryScreen() {
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  // Fetch check-in photo when a date is selected
+  // Fetch post photo for selected date
   useEffect(() => {
-    if (!selected || !user?.uid) { setCheckinPhoto(null); return; }
+    if (!selected || !user?.uid) { setPostPhoto(null); return; }
     const [y, m, d] = selected.split('-').map(Number);
-    const weekId = getISOWeekId(new Date(y, m, d));
-    setLoadingCheckin(true);
-    getDoc(doc(db, 'weeklyCheckins', user.uid, 'checkins', weekId))
-      .then(snap => setCheckinPhoto(snap.data()?.photos?.[0]?.url ?? null))
-      .catch(() => setCheckinPhoto(null))
-      .finally(() => setLoadingCheckin(false));
+    const dayStart = new Date(y, m, d);
+    const dayEnd   = new Date(y, m, d + 1);
+    setLoadingPost(true);
+    getDocs(query(
+      collection(db, 'posts'),
+      where('uid', '==', user.uid),
+      where('createdAt', '>=', Timestamp.fromDate(dayStart)),
+      where('createdAt', '<',  Timestamp.fromDate(dayEnd)),
+      orderBy('createdAt', 'desc'),
+      limit(1),
+    ))
+      .then(snap => setPostPhoto(snap.docs[0]?.data()?.imageUrl ?? null))
+      .catch(() => setPostPhoto(null))
+      .finally(() => setLoadingPost(false));
   }, [selected, user?.uid]);
 
   const logByDate: Record<string, WorkoutLog> = {};
@@ -252,8 +260,8 @@ export default function HistoryScreen() {
         {selectedLog && (
           <WorkoutDetail
             log={selectedLog}
-            checkinPhoto={checkinPhoto}
-            loadingCheckin={loadingCheckin}
+            postPhoto={postPhoto}
+            loadingPost={loadingPost}
             onDelete={async () => {
               if (!user?.uid) return;
               Alert.alert('Delete workout?', 'This will permanently remove this log.', [
@@ -295,10 +303,10 @@ export default function HistoryScreen() {
 
 // ── Workout detail ─────────────────────────────────────────────────────────────
 
-function WorkoutDetail({ log, checkinPhoto, loadingCheckin, onDelete }: {
+function WorkoutDetail({ log, postPhoto, loadingPost, onDelete }: {
   log: WorkoutLog;
-  checkinPhoto: string | null;
-  loadingCheckin: boolean;
+  postPhoto: string | null;
+  loadingPost: boolean;
   onDelete: () => void;
 }) {
   const date    = log.startTime.toDate();
@@ -306,14 +314,14 @@ function WorkoutDetail({ log, checkinPhoto, loadingCheckin, onDelete }: {
 
   return (
     <View style={wd.card}>
-      {/* Check-in photo */}
-      {loadingCheckin && (
+      {/* Post photo */}
+      {loadingPost && (
         <View style={wd.photoPlaceholder}>
           <ActivityIndicator color={colors.accent.primary} />
         </View>
       )}
-      {!loadingCheckin && checkinPhoto && (
-        <Image source={{ uri: checkinPhoto }} style={wd.photo} resizeMode="cover" />
+      {!loadingPost && postPhoto && (
+        <Image source={{ uri: postPhoto }} style={wd.photo} resizeMode="cover" />
       )}
 
       {/* Header */}

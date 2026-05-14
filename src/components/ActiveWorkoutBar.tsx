@@ -45,7 +45,7 @@ export default function ActiveWorkoutBar({ onPress }: Props) {
   const dotColor = restActive ? colors.accent.warning : colors.accent.primary;
 
   return (
-    <TouchableOpacity style={[s.bar, { bottom: bottom + 72 }]} onPress={onPress} activeOpacity={0.9}>
+    <TouchableOpacity style={[s.bar, { bottom: bottom + 88 }]} onPress={onPress} activeOpacity={0.9}>
       {/* Progress fill background */}
       <View style={[s.fill, { width: `${(done / Math.max(total, 1)) * 100}%` as any }]} />
 
@@ -93,23 +93,23 @@ const s = StyleSheet.create({
   bar: {
     position:         'absolute',
     bottom:           0,
-    left:             spacing.md,
-    right:            spacing.md,
-    height:           58,
+    left:             20,
+    right:            20,
+    height:           54,
     backgroundColor:  colors.bg.card,
-    borderRadius:     radius.lg,
+    borderRadius:     radius.xl,
     borderWidth:      1,
-    borderColor:      colors.borderLight,
+    borderColor:      `${colors.accent.primary}30`,
     flexDirection:    'row',
     alignItems:       'center',
     justifyContent:   'space-between',
     paddingHorizontal: spacing.md,
     overflow:         'hidden',
-    shadowColor:      colors.accent.primary,
-    shadowOffset:     { width: 0, height: 0 },
-    shadowOpacity:    0.25,
-    shadowRadius:     10,
-    elevation:        8,
+    shadowColor:      '#000',
+    shadowOffset:     { width: 0, height: 4 },
+    shadowOpacity:    0.4,
+    shadowRadius:     12,
+    elevation:        10,
   },
   fill: {
     position:         'absolute',

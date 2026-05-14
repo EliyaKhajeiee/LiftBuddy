@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect } from 'react';
@@ -19,6 +19,17 @@ import { colors, spacing, radius, typography, shadows } from '../src/theme';
 
 const MOODS = ['😴', '😕', '😐', '😊', '💪'] as const;
 const MOOD_LABELS = ['Exhausted', 'Low', 'Okay', 'Good', 'Crushing It'] as const;
+
+const POSES = [
+  'Front Double Bicep',
+  'Back Double Bicep',
+  'Side Chest',
+  'Side Tricep',
+  'Front Lat Spread',
+  'Back Lat Spread',
+  'Most Muscular',
+  'Abdominal & Thigh',
+] as const;
 
 // ── Measurement field ──────────────────────────────────────────────────────────
 
@@ -73,7 +84,8 @@ export default function CheckinScreen() {
   const [mood,      setMood]      = useState<1|2|3|4|5|null>(null);
   const [notes,     setNotes]     = useState('');
   const [photoUri,  setPhotoUri]  = useState<string | null>(null);
-  const [photoUrl,  setPhotoUrl]  = useState<string | null>(null);  // uploaded URL
+  const [photoUrl,  setPhotoUrl]  = useState<string | null>(null);
+  const [pose,      setPose]      = useState<string | null>(null);
   const [measurements, setMeasurements] = useState({
     chest: '', waist: '', hips: '', leftArm: '', rightArm: '', leftThigh: '', rightThigh: '',
   });
@@ -89,6 +101,7 @@ export default function CheckinScreen() {
         if (d.mood)    setMood(d.mood);
         if (d.notes)   setNotes(d.notes);
         if (d.photos?.[0]?.url) setPhotoUrl(d.photos[0].url);
+        if (d.photos?.[0]?.pose) setPose(d.photos[0].pose);
         if (d.measurements) {
           const m = d.measurements;
           setMeasurements({
@@ -179,7 +192,7 @@ export default function CheckinScreen() {
           notes:      notes.trim(),
           mood:       mood ?? null,
           ...(uploadedUrl
-            ? { photos: [{ url: uploadedUrl, storagePath: `checkins/${user.uid}/${docId}/photo_0.jpg`, takenAt: now, note: '', isMain: true }] }
+            ? { photos: [{ url: uploadedUrl, storagePath: `checkins/${user.uid}/${docId}/photo_0.jpg`, takenAt: now, note: '', isMain: true, ...(pose ? { pose } : {}) }] }
             : (!isEdit ? { photos: [] } : {})),
           measurements: {
             chest:      parseFloat(m.chest)      || null,
@@ -328,6 +341,26 @@ export default function CheckinScreen() {
           {/* ── Progress Photo ────────────────────────────────────────────── */}
           <View style={s.section}>
             <Text style={s.sectionLabel}>PROGRESS PHOTO</Text>
+            {/* Pose selector */}
+            <FlatList
+              data={POSES as unknown as string[]}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={item => item}
+              contentContainerStyle={s.poseList}
+              renderItem={({ item }) => {
+                const active = pose === item;
+                return (
+                  <TouchableOpacity
+                    style={[s.poseChip, active && s.poseChipActive]}
+                    onPress={() => setPose(active ? null : item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.poseChipText, active && s.poseChipTextActive]}>{item}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
             <View style={s.card}>
               {photoUri || photoUrl ? (
                 <View style={s.photoPreviewWrap}>
@@ -454,6 +487,13 @@ const s = StyleSheet.create({
 
   // Notes
   notesInput: { fontSize: 15, color: colors.text.primary, lineHeight: 22, minHeight: 90 },
+
+  // Pose
+  poseList:         { gap: spacing.xs, paddingVertical: spacing.xs },
+  poseChip:         { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full, backgroundColor: colors.bg.card, borderWidth: 1, borderColor: colors.border },
+  poseChipActive:   { backgroundColor: `${colors.accent.primary}15`, borderColor: colors.accent.primary },
+  poseChipText:     { fontSize: 13, fontWeight: '600', color: colors.text.secondary },
+  poseChipTextActive:{ color: colors.accent.primary },
 
   // Photo
   photoActions:   { flexDirection: 'row', alignItems: 'center' },

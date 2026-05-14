@@ -235,11 +235,12 @@ export interface ExerciseProgress {
 // ─── Weekly Check-ins ──────────────────────────────────────────────────────────
 
 export interface CheckinPhoto {
-  url:         string;   // Firebase Storage download URL
-  storagePath: string;   // path in Storage (for deletion)
+  url:         string;
+  storagePath: string;
   takenAt:     Timestamp;
   note:        string;
-  isMain:      boolean;  // the "cover" photo used for side-by-side comparison
+  isMain:      boolean;
+  pose?:       string;
 }
 
 export interface BodyMeasurements {

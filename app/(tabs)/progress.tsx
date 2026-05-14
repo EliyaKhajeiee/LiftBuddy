@@ -1,16 +1,16 @@
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
-  TextInput, Alert, ActivityIndicator, Image, RefreshControl,
+  ActivityIndicator, Image, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  doc, updateDoc, arrayUnion, Timestamp,
   collection, getDocs, orderBy, query, limit,
 } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
+
 import { useAuthStore } from '../../src/store/authStore';
 import { useUserStore } from '../../src/store/userStore';
 import { colors, spacing, radius, typography, shadows } from '../../src/theme';
@@ -28,7 +28,7 @@ function getISOWeek(d: Date): { week: number; year: number } {
   };
 }
 
-const MOODS = ['😴', '😕', '😐', '😊', '💪'] as const;
+const MOODS = ['Drained', 'Low', 'Okay', 'Good', 'Crushing It'] as const;
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -75,7 +75,11 @@ function CheckinCard({ checkin, onPress }: { checkin: CheckinData; onPress: () =
                 <Text style={cc.badgeText}>{checkin.weight} lbs</Text>
               </View>
             )}
-            {emoji && <Text style={cc.moodEmoji}>{emoji}</Text>}
+            {emoji && (
+              <View style={cc.moodPill}>
+                <Text style={cc.moodPillText}>{emoji}</Text>
+              </View>
+            )}
           </View>
         </View>
         {checkin.notes ? (
@@ -95,7 +99,8 @@ const cc = StyleSheet.create({
   badges:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   badge:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${colors.accent.primary}15`, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 4 },
   badgeText:{ fontSize: 11, fontWeight: '700', color: colors.accent.primary },
-  moodEmoji:{ fontSize: 20 },
+  moodPill:    { backgroundColor: `${colors.accent.primary}15`, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3 },
+  moodPillText:{ fontSize: 11, fontWeight: '700', color: colors.accent.primary },
   notes:    { fontSize: 13, color: colors.text.secondary, lineHeight: 18 },
 });
 
@@ -122,8 +127,6 @@ export default function ProgressScreen() {
   const weekRange = weekMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
     ' – ' + weekSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-  const [weightInput,   setWeightInput]   = useState('');
-  const [logBusy,       setLogBusy]       = useState(false);
   const [checkins,      setCheckins]      = useState<CheckinData[]>([]);
   const [checkinsLoading, setCheckinsLoading] = useState(true);
   const [refreshing,    setRefreshing]    = useState(false);
@@ -150,27 +153,6 @@ export default function ProgressScreen() {
   }, [user?.uid]);
 
   useEffect(() => { loadCheckins(); }, [loadCheckins]);
-
-  async function logWeight() {
-    const lbs = parseFloat(weightInput);
-    if (!lbs || lbs < 50 || lbs > 999) {
-      Alert.alert('Invalid weight', 'Enter a weight between 50 and 999 lbs.');
-      return;
-    }
-    if (!user?.uid) return;
-    setLogBusy(true);
-    try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        'stats.currentWeight': lbs,
-        'stats.weightHistory': arrayUnion({ date: Timestamp.now(), weight: lbs }),
-      });
-      setWeightInput('');
-    } catch {
-      Alert.alert('Error', 'Could not save weight. Try again.');
-    } finally {
-      setLogBusy(false);
-    }
-  }
 
   const weightHistory = stats?.weightHistory ?? [];
   const currentWeight = stats?.currentWeight;
@@ -215,9 +197,11 @@ export default function ProgressScreen() {
                   <View style={s.doneText}>
                     <Text style={s.doneTitle}>{weekRange} ✓</Text>
                     <Text style={s.doneSub}>
-                      {thisWeekCheckin.weight ? `${thisWeekCheckin.weight} lbs  ·  ` : ''}
-                      {thisWeekCheckin.mood ? MOODS[thisWeekCheckin.mood - 1] : ''}
-                      {thisWeekCheckin.photos?.length > 0 ? '  ·  📷' : ''}
+                      {[
+                        thisWeekCheckin.weight ? `${thisWeekCheckin.weight} lbs` : null,
+                        thisWeekCheckin.mood ? MOODS[thisWeekCheckin.mood - 1] : null,
+                        thisWeekCheckin.photos?.length > 0 ? 'Photo' : null,
+                      ].filter(Boolean).join('  ·  ')}
                     </Text>
                   </View>
                 </View>
@@ -253,41 +237,17 @@ export default function ProgressScreen() {
         <View style={s.section}>
           <SectionLabel text="BODYWEIGHT" />
           <View style={s.card}>
-            <View style={s.cardHeader}>
-              {currentWeight ? (
-                <View style={s.weightDisplay}>
-                  <Text style={s.currentWeightNum}>{currentWeight}</Text>
-                  <Text style={s.currentWeightUnit}>lbs</Text>
-                </View>
-              ) : (
-                <Text style={s.noDataText}>No weight logged yet</Text>
-              )}
-            </View>
-
-            <View style={s.logRow}>
-              <TextInput
-                style={s.weightInput}
-                value={weightInput}
-                onChangeText={v => setWeightInput(v.replace(/[^0-9.]/g, ''))}
-                placeholder="Enter weight"
-                placeholderTextColor={colors.text.muted}
-                keyboardType="numeric"
-                maxLength={6}
-              />
-              <Text style={s.lbsLabel}>lbs</Text>
-              <TouchableOpacity
-                style={[s.logBtn, (!weightInput || logBusy) && s.logBtnDisabled]}
-                onPress={logWeight}
-                disabled={!weightInput || logBusy}
-                activeOpacity={0.8}
-              >
-                <Text style={s.logBtnText}>{logBusy ? '…' : 'Log'}</Text>
-              </TouchableOpacity>
-            </View>
-
+            {currentWeight ? (
+              <View style={s.weightDisplay}>
+                <Text style={s.currentWeightNum}>{currentWeight}</Text>
+                <Text style={s.currentWeightUnit}>lbs</Text>
+              </View>
+            ) : (
+              <Text style={s.noDataText}>Log weight in your weekly check-in</Text>
+            )}
             {weightHistory.length > 0 && (
               <View style={s.historyList}>
-                {[...weightHistory].reverse().slice(0, 6).map((entry: any, i: number) => (
+                {[...weightHistory].reverse().slice(0, 5).map((entry: any, i: number) => (
                   <View key={i} style={s.historyRow}>
                     <Text style={s.historyDate}>
                       {entry.date?.toDate?.()?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ?? '—'}
@@ -303,7 +263,19 @@ export default function ProgressScreen() {
         {/* ── Check-in History ─────────────────────────────────────────── */}
         {pastCheckins.length > 0 && (
           <View style={s.section}>
-            <SectionLabel text="PAST CHECK-INS" />
+            <View style={s.sectionHeader}>
+              <SectionLabel text="PAST CHECK-INS" />
+              {pastCheckins.some(c => c.photos?.length > 0) && (
+                <TouchableOpacity
+                  style={s.compareBtn}
+                  onPress={() => router.push('/checkin-compare' as any)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="git-compare-outline" size={14} color={colors.accent.primary} />
+                  <Text style={s.compareBtnText}>Compare</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             {pastCheckins.map(c => (
               <CheckinCard
                 key={c.checkinId}
@@ -348,7 +320,10 @@ const s = StyleSheet.create({
   scroll:    { padding: spacing.lg, gap: spacing.lg, paddingBottom: 60 },
   center:    { justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
 
-  section: { gap: spacing.sm },
+  section:       { gap: spacing.sm },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  compareBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${colors.accent.primary}15`, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, borderWidth: 1, borderColor: `${colors.accent.primary}30` },
+  compareBtnText:{ fontSize: 12, fontWeight: '700', color: colors.accent.primary },
 
   card:        { backgroundColor: colors.bg.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, ...shadows.card },
   cardHeader:  { marginBottom: spacing.sm },
@@ -372,17 +347,10 @@ const s = StyleSheet.create({
   checkinBtnText:   { color: '#fff', fontWeight: '700', fontSize: 14 },
 
   // Weight
-  weightDisplay:    { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  weightDisplay:    { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: spacing.sm },
   currentWeightNum: { fontSize: 36, fontWeight: '800', color: colors.accent.primary, letterSpacing: -1 },
   currentWeightUnit:{ fontSize: 16, fontWeight: '600', color: colors.text.muted },
-  noDataText:       { fontSize: 15, color: colors.text.muted },
-
-  logRow:        { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-  weightInput:   { flex: 1, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, height: 46, paddingHorizontal: spacing.md, color: colors.text.primary, fontSize: 16, fontWeight: '600' },
-  lbsLabel:      { fontSize: 13, color: colors.text.muted, width: 24 },
-  logBtn:        { backgroundColor: colors.accent.primary, borderRadius: radius.md, paddingHorizontal: spacing.lg, height: 46, justifyContent: 'center', alignItems: 'center' },
-  logBtnDisabled:{ opacity: 0.4 },
-  logBtnText:    { color: '#fff', fontWeight: '700', fontSize: 15 },
+  noDataText:       { fontSize: 14, color: colors.text.muted, marginBottom: spacing.sm },
 
   historyList:   { gap: 0 },
   historyRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },

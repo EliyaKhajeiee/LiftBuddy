@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme';
 import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useCacaStore } from '../../src/store/cacaStore';
@@ -26,6 +27,7 @@ const TABS: TabConfig[] = [
 
 export default function TabsLayout() {
   const router   = useRouter();
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const { status, tick } = useWorkoutStore();
   const { enabled: cacaEnabled, loadSettings } = useCacaStore();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -50,8 +52,8 @@ export default function TabsLayout() {
             backgroundColor: colors.bg.secondary,
             borderTopColor:  colors.border,
             borderTopWidth:  1,
-            height: 64,
-            paddingBottom: 10,
+            height: 54 + bottomInset,
+            paddingBottom: bottomInset + 4,
             paddingTop: 6,
           },
           tabBarActiveTintColor:   colors.accent.primary,

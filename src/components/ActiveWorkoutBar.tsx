@@ -45,7 +45,7 @@ export default function ActiveWorkoutBar({ onPress }: Props) {
   const dotColor = restActive ? colors.accent.warning : colors.accent.primary;
 
   return (
-    <TouchableOpacity style={[s.bar, { bottom: bottom + 88 }]} onPress={onPress} activeOpacity={0.9}>
+    <TouchableOpacity style={[s.bar, { bottom: bottom + 66 }]} onPress={onPress} activeOpacity={0.9}>
       {/* Progress fill background */}
       <View style={[s.fill, { width: `${(done / Math.max(total, 1)) * 100}%` as any }]} />
 

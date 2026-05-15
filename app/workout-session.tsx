@@ -114,15 +114,16 @@ const sr = StyleSheet.create({
 // ── Exercise Card ──────────────────────────────────────────────────────────────
 
 function ExerciseCard({
-  ex, exIdx, onSwap, onAddSet, onRemoveSet,
+  ex, exIdx, onSwap, onRemove, onAddSet, onRemoveSet,
 }: {
   ex: ActiveExercise;
   exIdx: number;
   onSwap: () => void;
+  onRemove: () => void;
   onAddSet: () => void;
   onRemoveSet: () => void;
 }) {
-  const { updateSetField, toggleComplete } = useWorkoutStore();
+  const { updateSetField, toggleComplete, logSet } = useWorkoutStore();
   const done    = completedSets(ex);
   const total   = ex.sets.length;
   const allDone = done === total;
@@ -152,10 +153,15 @@ function ExerciseCard({
         </View>
         <View style={ec.headerRight}>
           <Text style={[ec.progress, allDone && ec.progressDone]}>{done}/{total}</Text>
-          <TouchableOpacity onPress={onSwap} style={ec.swapBtn} activeOpacity={0.7}>
-            <Ionicons name="swap-horizontal-outline" size={16} color={colors.text.muted} />
-            <Text style={ec.swapText}>Swap</Text>
-          </TouchableOpacity>
+          <View style={ec.headerActions}>
+            <TouchableOpacity onPress={onSwap} style={ec.swapBtn} activeOpacity={0.7}>
+              <Ionicons name="swap-horizontal-outline" size={15} color={colors.text.muted} />
+              <Text style={ec.swapText}>Swap</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onRemove} style={ec.removeBtn} activeOpacity={0.7}>
+              <Ionicons name="trash-outline" size={15} color={colors.accent.danger} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -177,7 +183,13 @@ function ExerciseCard({
           setIdx={setIdx}
           onUpdateWeight={v => updateSetField(exIdx, setIdx, 'weight', v)}
           onUpdateReps={v => updateSetField(exIdx, setIdx, 'reps', v)}
-          onToggle={() => toggleComplete(exIdx, setIdx)}
+          onToggle={() => {
+            if (set.completed) {
+              toggleComplete(exIdx, setIdx);
+            } else {
+              logSet(exIdx, setIdx, set.weight || '0', set.reps || '0');
+            }
+          }}
         />
       ))}
 
@@ -209,11 +221,13 @@ const ec = StyleSheet.create({
   hint:       { fontSize: 11, color: colors.text.muted, fontStyle: 'italic', flex: 1 },
   hintUp:     { color: colors.accent.success },
   hintDown:   { color: colors.accent.danger },
-  headerRight:{ alignItems: 'flex-end', gap: 6 },
-  progress:   { fontSize: 12, fontWeight: '700', color: colors.text.muted },
-  progressDone:{ color: colors.accent.success },
-  swapBtn:    { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3 },
-  swapText:   { fontSize: 11, color: colors.text.muted },
+  headerRight:  { alignItems: 'flex-end', gap: 6 },
+  headerActions:{ flexDirection: 'row', alignItems: 'center', gap: 6 },
+  progress:     { fontSize: 12, fontWeight: '700', color: colors.text.muted },
+  progressDone: { color: colors.accent.success },
+  swapBtn:      { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3 },
+  swapText:     { fontSize: 11, color: colors.text.muted },
+  removeBtn:    { width: 28, height: 28, borderRadius: radius.sm, borderWidth: 1, borderColor: `${colors.accent.danger}40`, justifyContent: 'center', alignItems: 'center' },
   colHeader:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
   colLabel:   { fontSize: 9, fontWeight: '700', letterSpacing: 1, color: colors.text.muted, textAlign: 'center' },
   setActions: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, paddingTop: spacing.sm },
@@ -361,6 +375,96 @@ const rm = StyleSheet.create({
   skipText:   { fontSize: 15, fontWeight: '700', color: colors.accent.primary },
 });
 
+// ── Add Exercise Modal (session-only) ─────────────────────────────────────────
+
+function AddExerciseModal({
+  visible, onAdd, onClose,
+}: {
+  visible: boolean;
+  onAdd: (ex: ActiveExercise) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = EXERCISES.filter(ex =>
+    !search || ex.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function select(item: typeof EXERCISES[0]) {
+    const sets: ActiveSet[] = Array.from({ length: 3 }, (_, i) => ({
+      setNumber: i + 1, prevWeight: 0, prevReps: 0,
+      weight: '', reps: '10', completed: false,
+      weightEdited: false, repsEdited: false,
+    }));
+    onAdd({
+      exerciseId:     item.exerciseId,
+      exerciseName:   item.name,
+      primaryMuscles: item.muscleGroups.primary,
+      targetSets: 3, repMin: 8, repMax: 12, restSeconds: 90,
+      sets,
+    });
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={am.container}>
+        <View style={am.header}>
+          <Text style={am.title}>Add Exercise</Text>
+          <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+            <Ionicons name="close" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
+        </View>
+        <Text style={am.note}>Added to this session only — your plan stays unchanged</Text>
+
+        <View style={am.searchRow}>
+          <Ionicons name="search" size={16} color={colors.text.muted} />
+          <TextInput
+            style={am.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search exercises…"
+            placeholderTextColor={colors.text.muted}
+            autoFocus
+          />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={16} color={colors.text.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <FlatList
+          data={filtered}
+          keyExtractor={ex => ex.exerciseId}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => (
+            <TouchableOpacity style={am.row} onPress={() => select(item)} activeOpacity={0.7}>
+              <View style={{ flex: 1 }}>
+                <Text style={am.exName}>{item.name}</Text>
+                <Text style={am.exMeta}>{item.muscleGroups.primary.join(', ')} · {item.category}</Text>
+              </View>
+              <Ionicons name="add-circle-outline" size={22} color={colors.accent.primary} />
+            </TouchableOpacity>
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: spacing.lg }} />}
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const am = StyleSheet.create({
+  container:   { flex: 1, backgroundColor: colors.bg.primary },
+  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title:       { fontSize: 18, fontWeight: '700', color: colors.text.primary },
+  note:        { fontSize: 11, color: colors.text.muted, marginHorizontal: spacing.lg, marginTop: spacing.sm, fontStyle: 'italic' },
+  searchRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, margin: spacing.lg, marginBottom: spacing.sm, backgroundColor: colors.bg.input, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm, height: 44 },
+  searchInput: { flex: 1, color: colors.text.primary, fontSize: 15 },
+  row:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  exName:      { fontSize: 15, fontWeight: '600', color: colors.text.primary },
+  exMeta:      { fontSize: 12, color: colors.text.muted, marginTop: 2, textTransform: 'capitalize' },
+});
+
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export default function WorkoutSession() {
@@ -369,11 +473,12 @@ export default function WorkoutSession() {
   const {
     dayName, exercises, elapsed, status,
     finishSession, clearSession,
-    swapExercise, addSet, removeSet, removeExercise,
+    swapExercise, addExercise, addSet, removeSet, removeExercise,
     restActive, restRemaining, restTotal, skipRest,
   } = useWorkoutStore();
 
-  const [swapTarget, setSwapTarget] = useState<number | null>(null);
+  const [swapTarget,   setSwapTarget]   = useState<number | null>(null);
+  const [showAddEx,    setShowAddEx]    = useState(false);
 
   const navigatingRef = useRef(false);
 
@@ -456,10 +561,22 @@ export default function WorkoutSession() {
             ex={ex}
             exIdx={exIdx}
             onSwap={() => setSwapTarget(exIdx)}
+            onRemove={() => Alert.alert(
+              'Remove exercise?', ex.exerciseName,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Remove', style: 'destructive', onPress: () => removeExercise(exIdx) },
+              ]
+            )}
             onAddSet={() => addSet(exIdx)}
             onRemoveSet={() => removeSet(exIdx)}
           />
         ))}
+
+        <TouchableOpacity style={s.addExBtn} onPress={() => setShowAddEx(true)} activeOpacity={0.8}>
+          <Ionicons name="add-circle-outline" size={18} color={colors.accent.primary} />
+          <Text style={s.addExText}>Add Exercise</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Swap modal */}
@@ -471,6 +588,13 @@ export default function WorkoutSession() {
           onClose={() => setSwapTarget(null)}
         />
       )}
+
+      {/* Add exercise modal (session-only, doesn't modify plan) */}
+      <AddExerciseModal
+        visible={showAddEx}
+        onAdd={ex => { addExercise(ex); setShowAddEx(false); }}
+        onClose={() => setShowAddEx(false)}
+      />
 
       {/* Rest timer modal */}
       <RestTimerModal
@@ -502,5 +626,7 @@ const s = StyleSheet.create({
   progressLabel: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs },
   progressText:  { fontSize: 11, fontWeight: '700', letterSpacing: 1, color: colors.text.muted },
 
-  scroll: { padding: spacing.md, gap: spacing.md, paddingBottom: 60 },
+  scroll:     { padding: spacing.md, gap: spacing.md, paddingBottom: 60 },
+  addExBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderWidth: 1.5, borderStyle: 'dashed', borderColor: `${colors.accent.primary}50`, borderRadius: radius.md, height: 52, marginTop: spacing.xs },
+  addExText:  { fontSize: 15, fontWeight: '700', color: colors.accent.primary },
 });

@@ -42,6 +42,7 @@ interface WorkoutStore {
   restActive:    boolean;
   restRemaining: number;
   restTotal:     number;
+  restStarted:   number | null;
 
   startSession:     (uid: string, plan: WorkoutPlan, dayKey: string, lastSession?: LastSession) => void;
   startCustom:      (uid: string, name: string, exercises: ActiveExercise[]) => void;
@@ -121,7 +122,7 @@ function buildExercises(
 const INITIAL = {
   sessionId: null, dayKey: null, dayName: '', startTime: null,
   exercises: [], status: 'idle' as const, elapsed: 0, currentExIdx: 0,
-  restActive: false, restRemaining: 0, restTotal: 0,
+  restActive: false, restRemaining: 0, restTotal: 0, restStarted: null,
 };
 
 export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
@@ -217,6 +218,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
         restActive:    !allDone,
         restRemaining: !allDone ? restSeconds : 0,
         restTotal:     !allDone ? restSeconds : 0,
+        restStarted:   !allDone ? Date.now() : null,
       };
     });
   },
@@ -271,23 +273,27 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
   tick() {
     set(state => {
-      const newRest = state.restActive && state.restRemaining > 0
-        ? state.restRemaining - 1
+      const now     = Date.now();
+      const elapsed = state.startTime
+        ? Math.floor((now - state.startTime.getTime()) / 1000)
+        : state.elapsed;
+      const restRemaining = state.restActive && state.restStarted
+        ? Math.max(0, state.restTotal - Math.floor((now - state.restStarted) / 1000))
         : state.restRemaining;
       return {
-        elapsed:       state.elapsed + 1,
-        restRemaining: newRest,
-        restActive:    newRest > 0 ? state.restActive : false,
+        elapsed,
+        restRemaining,
+        restActive: restRemaining > 0 ? state.restActive : false,
       };
     });
   },
 
   startRest(seconds: number) {
-    set({ restActive: true, restRemaining: seconds, restTotal: seconds });
+    set({ restActive: true, restRemaining: seconds, restTotal: seconds, restStarted: Date.now() });
   },
 
   skipRest() {
-    set({ restActive: false, restRemaining: 0 });
+    set({ restActive: false, restRemaining: 0, restStarted: null });
   },
 
   async finishSession(uid) {

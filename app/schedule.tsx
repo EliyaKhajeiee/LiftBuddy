@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { doc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
 import { db } from '../src/firebase/config';
 import { useAuthStore } from '../src/store/authStore';
 import { useUserStore }  from '../src/store/userStore';
@@ -470,11 +470,12 @@ export default function ScheduleScreen() {
               if (newSched[d] === dk) newSched[d] = null;
             });
             setSchedule(newSched);
-            if (!user?.uid || !plan) return;
+            if (!user?.uid) return;
             try {
-              await setDoc(doc(db, 'users', user.uid), {
-                plan: { ...plan, schedule: newSched, days: newDays },
-              }, { merge: true });
+              await updateDoc(doc(db, 'users', user.uid), {
+                [`plan.days.${dk}`]: deleteField(),
+                'plan.schedule': newSched,
+              });
             } catch {
               Alert.alert('Error', 'Could not save. Try again.');
             }
@@ -500,11 +501,11 @@ export default function ScheduleScreen() {
     const newDays = { ...days, [dayKey]: updated };
     setDays(newDays);
     setEditingDayKey(null);
-    if (!user?.uid || !plan) return;
+    if (!user?.uid) return;
     try {
-      await setDoc(doc(db, 'users', user.uid), {
-        plan: { ...plan, schedule, days: newDays },
-      }, { merge: true });
+      await updateDoc(doc(db, 'users', user.uid), {
+        [`plan.days.${dayKey}`]: updated,
+      });
     } catch {
       Alert.alert('Error', 'Could not save. Try again.');
     }
@@ -526,9 +527,10 @@ export default function ScheduleScreen() {
     if (!user?.uid || !plan) return;
     setSaving(true);
     try {
-      await setDoc(doc(db, 'users', user.uid), {
-        plan: { ...plan, schedule, days },
-      }, { merge: true });
+      await updateDoc(doc(db, 'users', user.uid), {
+        'plan.schedule': schedule,
+        'plan.days': days,
+      });
       router.back();
     } catch {
       Alert.alert('Error', 'Could not save schedule. Try again.');

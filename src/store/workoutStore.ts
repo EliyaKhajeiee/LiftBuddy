@@ -91,7 +91,8 @@ function buildExercises(
       const avg           = lastSets.reduce((s, set) => s + set.weight, 0) / lastSets.length;
       suggestedReps       = Math.round(lastSets.reduce((s, set) => s + set.reps, 0) / lastSets.length);
       const hitTopOfRange = lastSets.every(s => s.reps >= pe.repMax && s.completed);
-      suggestedWeight     = hitTopOfRange ? avg + overloadDelta() : avg;
+      const raw           = hitTopOfRange ? avg + overloadDelta() : avg;
+      suggestedWeight     = Math.round(raw / 2.5) * 2.5;
     }
 
     const sets: ActiveSet[] = Array.from({ length: pe.sets }, (_, i) => {

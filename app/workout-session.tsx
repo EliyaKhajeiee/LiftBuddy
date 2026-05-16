@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../src/store/authStore';
+import { useUserStore } from '../src/store/userStore';
 import { useWorkoutStore, ActiveExercise, ActiveSet } from '../src/store/workoutStore';
 import { EXERCISES } from '../src/data/exercises';
 import { colors, spacing, radius, typography } from '../src/theme';
@@ -114,7 +115,7 @@ const sr = StyleSheet.create({
 // ── Exercise Card ──────────────────────────────────────────────────────────────
 
 function ExerciseCard({
-  ex, exIdx, onSwap, onRemove, onAddSet, onRemoveSet,
+  ex, exIdx, onSwap, onRemove, onAddSet, onRemoveSet, useTimer,
 }: {
   ex: ActiveExercise;
   exIdx: number;
@@ -122,6 +123,7 @@ function ExerciseCard({
   onRemove: () => void;
   onAddSet: () => void;
   onRemoveSet: () => void;
+  useTimer: boolean;
 }) {
   const { updateSetField, toggleComplete, logSet } = useWorkoutStore();
   const done    = completedSets(ex);
@@ -186,8 +188,10 @@ function ExerciseCard({
           onToggle={() => {
             if (set.completed) {
               toggleComplete(exIdx, setIdx);
-            } else {
+            } else if (useTimer) {
               logSet(exIdx, setIdx, set.weight || '0', set.reps || '0');
+            } else {
+              toggleComplete(exIdx, setIdx);
             }
           }}
         />
@@ -470,6 +474,8 @@ const am = StyleSheet.create({
 export default function WorkoutSession() {
   const router  = useRouter();
   const { user } = useAuthStore();
+  const { data } = useUserStore();
+  const useTimer = (data?.settings?.workoutMode ?? 'timer') === 'timer';
   const {
     dayName, exercises, elapsed, status,
     finishSession, clearSession,
@@ -560,6 +566,7 @@ export default function WorkoutSession() {
             key={`${ex.exerciseId}-${exIdx}`}
             ex={ex}
             exIdx={exIdx}
+            useTimer={useTimer}
             onSwap={() => setSwapTarget(exIdx)}
             onRemove={() => Alert.alert(
               'Remove exercise?', ex.exerciseName,

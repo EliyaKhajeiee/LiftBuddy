@@ -66,8 +66,12 @@ function isDayLogged(_plan: WorkoutPlan, dayKey: string, lastSessions: any): boo
   if (!ls?.date) return false;
   try {
     const d = ls.date.toDate ? ls.date.toDate() : new Date(ls.date);
-    const today = new Date();
-    return d.toDateString() === today.toDateString();
+    const now = new Date();
+    const dow = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    monday.setHours(0, 0, 0, 0);
+    return d >= monday;
   } catch { return false; }
 }
 
@@ -292,14 +296,6 @@ export default function WorkoutScreen() {
               />
             ) : (
               <RestDayCard quote={getDayQuote('rest')} onSwitchDay={() => setShowSwap(true)} hasPlan={!!plan} />
-            )}
-
-            {/* Last session recap */}
-            {viewingDayKey && lastSessions?.[viewingDayKey] && (
-              <LastSessionRecap
-                dayKey={viewingDayKey}
-                lastSession={lastSessions[viewingDayKey]}
-              />
             )}
 
             {/* Manage */}

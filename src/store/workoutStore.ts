@@ -84,25 +84,21 @@ function buildExercises(
     const lastEx         = lastSession?.exercises.find(e => e.exerciseId === pe.exerciseId);
     const lastSets       = lastEx?.sets ?? [];
 
-    let suggestedWeight = 0;
-    let suggestedReps   = pe.repMin;
-
-    if (lastSets.length > 0) {
-      const avg           = lastSets.reduce((s, set) => s + set.weight, 0) / lastSets.length;
-      suggestedReps       = Math.round(lastSets.reduce((s, set) => s + set.reps, 0) / lastSets.length);
-      const hitTopOfRange = lastSets.every(s => s.reps >= pe.repMax && s.completed);
-      const raw           = hitTopOfRange ? avg + overloadDelta() : avg;
-      suggestedWeight     = Math.round(raw / 2.5) * 2.5;
-    }
+    const hitTopOfRange = lastSets.length > 0 && lastSets.every(s => s.reps >= pe.repMax && s.completed);
 
     const sets: ActiveSet[] = Array.from({ length: pe.sets }, (_, i) => {
-      const prev = lastSets[i];
+      const prev       = lastSets[i] ?? lastSets[lastSets.length - 1];
+      const prevWeight = prev?.weight ?? 0;
+      const prevReps   = prev?.reps   ?? 0;
+      const sugWeight  = prevWeight > 0
+        ? (hitTopOfRange ? Math.round((prevWeight + overloadDelta()) / 2.5) * 2.5 : prevWeight)
+        : 0;
       return {
         setNumber:    i + 1,
-        prevWeight:   prev?.weight ?? 0,
-        prevReps:     prev?.reps   ?? 0,
-        weight:       suggestedWeight > 0 ? String(suggestedWeight) : '',
-        reps:         suggestedReps   > 0 ? String(suggestedReps)   : String(pe.repMin),
+        prevWeight,
+        prevReps,
+        weight:       sugWeight > 0 ? String(sugWeight) : '',
+        reps:         prevReps  > 0 ? String(prevReps)  : String(pe.repMin),
         completed:    false,
         weightEdited: false,
         repsEdited:   false,

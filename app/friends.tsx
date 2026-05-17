@@ -167,11 +167,12 @@ export default function FriendsScreen() {
   }
 
   async function handleAdd(item: UserSearchResult) {
-    if (!user?.uid || !data?.displayName) return;
+    if (!user?.uid) return;
+    const myName = data?.displayName || user.displayName || 'User';
     try {
-      await sendRequest(user.uid, data.displayName, data.avatarUrl ?? null, item.uid);
-    } catch {
-      Alert.alert('Error', 'Could not send friend request. Try again.');
+      await sendRequest(user.uid, myName, data?.avatarUrl ?? null, item.uid);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not send friend request. Try again.');
     }
   }
 

@@ -3,6 +3,7 @@
     "name": "LiftBuddy",
     "slug": "liftbuddy",
     "version": "1.0.0",
+    "privacy": "unlisted",
     "orientation": "portrait",
     "scheme": "liftbuddy",
     "userInterfaceStyle": "dark",
